@@ -275,6 +275,7 @@ export default function Record(): JSX.Element {
       if (!Ctx) return
       if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
       const ctx = audioCtxRef.current
+      if (!ctx) return
       const o = ctx.createOscillator()
       const g = ctx.createGain()
       o.type = 'sine'
@@ -511,17 +512,20 @@ export default function Record(): JSX.Element {
               setShowCreateModal(false)
               // ensure group list contains the created exercise's group
               if (ex.group) {
+                const g = ex.group
                 setGroups((prev) => {
-                  if (prev.find((g) => g.id === ex.group)) return prev
-                  return [{ id: ex.group, name: ex.group }, ...prev]
+                  if (prev.find((pg) => pg.id === g)) return prev
+                  return [{ id: g, name: g }, ...prev]
                 })
                 // switch current group to the created exercise's group so it's visible
-                setGroup(ex.group)
+                setGroup(g)
               }
               // prepend created exercise so UI shows it immediately
               setExercises((prev) => {
+                if (!ex.id || !ex.name) return prev
                 if (prev.find((p) => p.id === ex.id)) return prev
-                return [ex, ...prev]
+                const item: Exercise = { id: ex.id, name: ex.name, group: ex.group }
+                return [item, ...prev]
               })
               // backfill any existing planSets that referenced this id but lacked a name
               setPlanSets((prev) => prev.map((s) => {
@@ -535,7 +539,8 @@ export default function Record(): JSX.Element {
               searchExercises('', cat).then((list) => {
                 setExercises((prev) => {
                   const ids = new Set(prev.map((p) => p.id))
-                  const merged = list.filter((l) => !ids.has(l.id))
+                  // ensure incoming items have required id and name
+                  const merged = list.filter((l) => l && l.id && l.name && !ids.has(l.id)) as Exercise[]
                   return [ ...prev, ...merged ]
                 })
               }).catch(() => {})
