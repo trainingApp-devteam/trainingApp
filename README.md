@@ -65,3 +65,29 @@ docker compose up --build
 初回起動時にFlywayが標準種目と推定係数を投入します。ログインには、docker-compose.yml の TRAININGAPP_ADMIN_USERNAME / TRAININGAPP_ADMIN_PASSWORD で作成される初期Adminを使います。推定にはRPE、体重、動作時間を使い、入力と推定結果は`exercise_calorie_estimates`へ保存します。DB資格情報はローカルテスト専用です。
 
 DBを残して停止する場合は`docker compose down`、全テストデータを削除して初期化する場合は`docker compose down -v`を使います。
+
+## E2Eテスト
+
+Playwrightのスモークテストが、実Backend(dev/H2)とFrontendを自動で起動して検証します。初回のみブラウザーを導入します。
+
+```powershell
+Push-Location frontend
+npm ci
+npx playwright install chromium
+npm run e2e
+Pop-Location
+```
+
+## API仕様の自動検証
+
+`docs/openapi.yaml` は手書きの契約です。開発プロファイルでは springdoc が実装から `/v3/api-docs` を生成し、Backendのテストが `docs/openapi.yaml` と一致すること（メソッドとパス）を検証します。生成結果は `backend/build/openapi/api-docs.json`（CIではartifact）に出力されます。API変更時は `docs/openapi.yaml` も更新してください。
+
+## 運用・リリース
+
+運用手順は [docs/operations/](docs/operations/) にあります。
+
+- [デプロイ手順](docs/operations/deployment.md) / [Secrets管理](docs/operations/secrets.md)
+- [バックアップ・復元](docs/operations/backup-restore.md) / [監視](docs/operations/monitoring.md)
+- [運用Runbook](docs/operations/runbook.md) / [リリースチェックリスト](docs/operations/release-checklist.md) / [リリースノートのテンプレート](docs/operations/release-notes-template.md)
+
+本番用の構成は `docker-compose.prod.yml` と `.env.prod.example` です。

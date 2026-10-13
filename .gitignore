@@ -64,3 +64,4 @@ backend/build/
 # Playwright
 playwright-report/
 test-results/
+!/.env.prod.example

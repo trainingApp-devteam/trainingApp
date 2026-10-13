@@ -2,9 +2,9 @@ package dev.training.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.training.web.ApiError;
+import dev.training.web.RequestIdFilter;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -65,7 +65,7 @@ public class SecurityConfiguration {
                 .csrfTokenRepository(csrfRepository)
                 .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/invitations/accept", "/actuator/health", "/error")
+                        .requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login", "/api/v1/invitations/accept", "/actuator/health/**", "/error")
                         .permitAll()
                         .anyRequest()
                         .authenticated())
@@ -78,13 +78,13 @@ public class SecurityConfiguration {
                             response.setStatus(HttpStatus.UNAUTHORIZED.value());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             objectMapper.writeValue(response.getOutputStream(), new ApiError(
-                                    "UNAUTHENTICATED", "ログインしてください。", List.of(), UUID.randomUUID().toString()));
+                                    "UNAUTHENTICATED", "ログインしてください。", List.of(), RequestIdFilter.current()));
                         })
                         .accessDeniedHandler((request, response, exception) -> {
                             response.setStatus(HttpStatus.FORBIDDEN.value());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             objectMapper.writeValue(response.getOutputStream(), new ApiError(
-                                    "FORBIDDEN", "この操作を実行できません。", List.of(), UUID.randomUUID().toString()));
+                                    "FORBIDDEN", "この操作を実行できません。", List.of(), RequestIdFilter.current()));
                         }));
         return http.build();
     }

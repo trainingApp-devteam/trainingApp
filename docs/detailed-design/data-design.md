@@ -33,7 +33,9 @@ erDiagram
     TRAINING_SESSIONS ||--|{ SESSION_EXERCISES : contains
     EXERCISES ||--o{ SESSION_EXERCISES : selected
     SESSION_EXERCISES ||--|{ SET_RECORDS : has
-    EXERCISE_CALORIE_RATES o|--o{ SET_RECORDS : estimates
+    EXERCISE_CALORIE_RATES ||--o{ EXERCISE_CALORIE_ESTIMATES : applied
+    USERS ||--o{ EXERCISE_CALORIE_ESTIMATES : requests
+    EXERCISE_CALORIE_ESTIMATES o|--o{ SET_RECORDS : referenced_by
     ROUTINES ||--|{ ROUTINE_EXERCISES : contains
     EXERCISES ||--o{ ROUTINE_EXERCISES : selected
 ```
@@ -213,6 +215,7 @@ CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NU
 - `session_exercises(session_id, display_order)` UNIQUE。
 - `set_records(session_exercise_id, set_number)` UNIQUE。
 - `exercise_calorie_rates(exercise_code, basis, rpe_min, rpe_max, version)` UNIQUE。
+- `session_exercises(exercise_id, session_id)` INDEX（種目別の履歴絞り込み）、`exercise_calorie_rates(exercise_code, basis, enabled)` INDEX、`exercise_calorie_estimates(user_id, created_at)` INDEX（V7）。
 - `routines(user_id, name)`は必要に応じて重複を禁止する。初期案では同名メニューを許可する。
 - `routine_exercises(routine_id, display_order)` UNIQUE。
 - `body_measurements(user_id, measurement_type_id, measured_at)` INDEX。

@@ -5,13 +5,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
+import org.yaml.snakeyaml.Yaml;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -527,6 +535,64 @@ class ApiIntegrationTest {
                 .contentType("application/json")
                 .content("{\"exerciseId\":" + exerciseId + ",\"basis\":\"" + basis + "\",\"rpe\":" + rpe
                         + ",\"bodyWeightKg\":" + bodyWeightKg + "," + amount + "}"));
+    }
+
+    @Test
+    void exposesRequestIdAndHealthProbesWithoutLogin() throws Exception {
+        mockMvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Request-Id"));
+        mockMvc.perform(get("/actuator/health").header("X-Request-Id", "abc-123"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Request-Id", "abc-123"));
+        MvcResult replaced = mockMvc.perform(get("/actuator/health").header("X-Request-Id", "bad id!"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertNotEquals("bad id!", replaced.getResponse().getHeader("X-Request-Id"));
+    }
+
+    @Test
+    void generatedApiDocsMatchTheOpenApiContract() throws Exception {
+        MockHttpSession session = login(owner);
+        String generated = mockMvc.perform(get("/v3/api-docs").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        Path output = Path.of("build", "openapi", "api-docs.json");
+        Files.createDirectories(output.getParent());
+        Files.writeString(output, generated);
+
+        Set<String> actual = new TreeSet<>();
+        new ObjectMapper().readTree(generated).get("paths").fields().forEachRemaining(path -> {
+            if (!path.getKey().startsWith("/api/v1/")) {
+                return;
+            }
+            path.getValue().fieldNames().forEachRemaining(method -> actual.add(operation(method, path.getKey().substring("/api/v1".length()))));
+        });
+
+        Set<String> documented = new TreeSet<>();
+        Map<String, Object> spec = readSpec();
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> paths = (Map<String, Map<String, Object>>) spec.get("paths");
+        paths.forEach((path, item) -> item.keySet().stream()
+                .filter(key -> Set.of("get", "post", "put", "delete", "patch").contains(key))
+                .forEach(method -> documented.add(operation(method, path))));
+
+        Set<String> undocumented = new TreeSet<>(actual);
+        undocumented.removeAll(documented);
+        Set<String> unimplemented = new TreeSet<>(documented);
+        unimplemented.removeAll(actual);
+        org.junit.jupiter.api.Assertions.assertTrue(undocumented.isEmpty() && unimplemented.isEmpty(),
+                "implemented but not in docs/openapi.yaml: " + undocumented + "; documented but not implemented: " + unimplemented);
+    }
+
+    private static String operation(String method, String path) {
+        return method.toUpperCase() + " " + path.replaceAll("\\{[^}]+}", "{}");
+    }
+
+    private static Map<String, Object> readSpec() throws IOException {
+        try (var reader = Files.newBufferedReader(Path.of("..", "docs", "openapi.yaml"))) {
+            return new Yaml().load(reader);
+        }
     }
 
     private MockHttpSession login(String username) throws Exception {

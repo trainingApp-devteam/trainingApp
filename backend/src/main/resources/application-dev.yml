@@ -15,3 +15,7 @@ server:
     session:
       cookie:
         secure: false
+
+springdoc:
+  api-docs:
+    enabled: true

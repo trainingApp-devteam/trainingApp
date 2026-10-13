@@ -74,22 +74,22 @@
 
 |  ID | 作業                                   | 状態 | 完了日 | 備考             |
 | --: | -------------------------------------- | ------ | ------ | ---------------- |
-| 5.1 | DB スキーマ設計（ER 図）               | ×    | -      | 正規化と関係設計 |
+| 5.1 | DB スキーマ設計（ER 図） | 〇 | 2026/10/13 | ER図を `docs/detailed-design/data-design.md` に整備し、カロリー推定テーブル（V4〜V6）を反映 |
 | 5.2 | マイグレーション作成（初期データ含む） | △    | -      | Flyway V1〜V6（初期スキーマ、ルーティン目標、開発用種目、カロリー係数、セット推定参照、体重）を作成。MySQLでの実行確認と本番初期データ運用は後続 |
-| 5.3 | パフォーマンス考慮（インデックス）     | ×    | -      | クエリ最適化     |
-| 5.4 | バックアップ・復元手順文書化           | ×    | -      | DR 手順          |
-| 5.5 | DB 接続と ORM 設定                     | ×    | -      | 接続プール設定   |
+| 5.3 | パフォーマンス考慮（インデックス） | 〇 | 2026/10/13 | 主要クエリ向けインデックスを V1・V7 で整備（種目別履歴、係数検索、推定履歴）。MySQLでの実行計画確認は11.8と併せて実施 |
+| 5.4 | バックアップ・復元手順文書化 | 〇 | 2026/10/13 | `docs/operations/backup-restore.md` と `infra/backup/{backup,restore}.sh`（mysqldump+age暗号化+別保存先）。実サーバーでの復元テストは公開前に実施 |
+| 5.5 | DB 接続と ORM 設定 | 〇 | 2026/10/13 | JDBC接続（Spring JDBC）とHikariCP設定（上限/最小アイドル/タイムアウト、環境変数で調整）、graceful shutdown を `application.yml` に設定 |
 
 6. インフラ & CI/CD
 
 |  ID | 作業                                           | 状態 | 完了日 | 備考                   |
 | --: | ---------------------------------------------- | ---- | ------ | ----------------------- |
-| 6.1 | コンテナ化（Dockerfile multi-stage）           | △    | -      | backend(Gradle/JDK17)・frontend のDockerfileとdocker-compose.ymlを作成。Docker実機での起動確認とビルド最適化は後続 |
-| 6.2 | レジストリ & デプロイ手順整備                  | ×    | -      | ACR/ECR 連携            |
-| 6.3 | Infra テンプレート作成（Bicep/Terraform）      | ×    | -      | 簡易テンプレート        |
-| 6.4 | GitHub Actions: build/test/deploy ワークフロー | △    | -      | frontend/backend の build・test は ci.yml で自動化。deploy は未着手      |
-| 6.5 | Secrets/Key 管理手順作成                       | ×    | -      | KeyVault 等             |
-| 6.6 | モニタリング設定                               | ×    | -      | Application Insights 等 |
+| 6.1 | コンテナ化（Dockerfile multi-stage） | △ | - | backend(Gradle/JDK17・非root・plain jar無効化)、frontend、本番用(Caddy)のDockerfileとcompose定義を作成。Docker実機でのビルド・起動確認はDocker起動が必要なため11.8で実施 |
+| 6.2 | レジストリ & デプロイ手順整備 | 〇 | 2026/10/13 | GHCR運用とサーバー手順を `docs/operations/deployment.md` に整備。タグpushで `release.yml` がイメージを公開 |
+| 6.3 | Infra テンプレート作成（Bicep/Terraform） | 〇 | 2026/10/13 | 設計書の構成（単一VPS+Compose+Caddy）に合わせ、Bicep/Terraformの代わりに `docker-compose.prod.yml`・`docker/caddy/Caddyfile`・`.env.prod.example` を作成。マネージドクラウド採用時にIaCを追加 |
+| 6.4 | GitHub Actions: build/test/deploy ワークフロー | 〇 | 2026/10/13 | ci.yml（frontend/backend/e2e）と release.yml（GHCR公開・Release作成・任意のSSHデプロイ）。デプロイジョブは `DEPLOY_ENABLED` とSecrets設定時のみ有効 |
+| 6.5 | Secrets/Key 管理手順作成 | 〇 | 2026/10/13 | `docs/operations/secrets.md`（一覧、保管場所、更新契機、漏えい時対応） |
+| 6.6 | モニタリング設定 | 〇 | 2026/10/13 | Actuatorのliveness/readiness、X-Request-Idとログ連携、未処理例外のログ出力、コンテナhealthcheck、`docs/operations/monitoring.md`。APM導入は将来対応 |
 
 7. テスト & 品質保証
 
@@ -104,15 +104,15 @@
 |  ID | 作業                               | 状態 | 完了日 | 備考             |
 | --: | ---------------------------------- | ---- | ------ | ---------------- |
 | 8.1 | README・セットアップ手順更新       | 〇    | 2026/10/04 | H2開発環境、Admin初期化、Viteプロキシ、MSW切替、データ揮発性を追記 |
-| 8.2 | 運用 runbook（ログ確認・障害対応） | ×    | -      | 運用手順書       |
-| 8.3 | API ドキュメント生成（OpenAPI）    | ×    | -      | 自動生成設定     |
-| 8.4 | リリースノートテンプレート作成     | ×    | -      | リリース時の記録 |
+| 8.2 | 運用 runbook（ログ確認・障害対応） | 〇 | 2026/10/13 | `docs/operations/runbook.md`（コマンド、症状別対応、点検、障害記録） |
+| 8.3 | API ドキュメント生成（OpenAPI） | 〇 | 2026/10/13 | springdocで `/v3/api-docs` を生成（dev）。Backendテストで `docs/openapi.yaml` との差分を検出し、CIで生成物をartifact化 |
+| 8.4 | リリースノートテンプレート作成 | 〇 | 2026/10/13 | `docs/operations/release-notes-template.md`。タグpush時にGitHub Releaseを自動生成 |
 
 9. リリース作業
 
 |  ID | 作業                     | 状態 | 完了日 | 備考             |
 | --: | ------------------------ | ---- | ------ | ---------------- |
-| 9.1 | リリースビルド作成・検証 | ×    | -      | 本番ビルド確認   |
+| 9.1 | リリースビルド作成・検証 | 〇 | 2026/10/13 | bootJar生成と起動(readiness 200)、`npm run build`、CI全ジョブ成功を確認。手順は `docs/operations/release-checklist.md` |
 | 9.2 | デプロイ実行・検証       | ×    | -      | 手順書に従う     |
 | 9.3 | ロールアウト監視         | ×    | -      | モニタリング確認 |
 
