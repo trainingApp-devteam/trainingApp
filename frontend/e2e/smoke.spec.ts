@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
-const username = 'e2e-admin'
-const password = 'e2e-password-123'
+const username = process.env.E2E_ADMIN_USERNAME || 'e2e-admin'
+const password = process.env.E2E_ADMIN_PASSWORD || 'e2e-password-123'
 
 async function api(page: Page, method: 'POST' | 'GET', path: string, data?: unknown) {
   await page.request.get('/api/v1/auth/csrf')

@@ -64,6 +64,8 @@ docker compose up --build
 
 初回起動時にFlywayが標準種目と推定係数を投入します。ログインには、docker-compose.yml の TRAININGAPP_ADMIN_USERNAME / TRAININGAPP_ADMIN_PASSWORD で作成される初期Adminを使います。推定にはRPE、体重、動作時間を使い、入力と推定結果は`exercise_calorie_estimates`へ保存します。DB資格情報はローカルテスト専用です。
 
+ホストの3306番ポートが使用中の場合は、`DB_HOST_PORT` 環境変数でMySQLの公開ポートを変更できます（例: `$env:DB_HOST_PORT = "13307"`）。
+
 DBを残して停止する場合は`docker compose down`、全テストデータを削除して初期化する場合は`docker compose down -v`を使います。
 
 ## E2Eテスト

@@ -19,11 +19,11 @@ services:
       MYSQL_PASSWORD: training_app_local
       MYSQL_ROOT_PASSWORD: root_local_only
     ports:
-      - "127.0.0.1:3306:3306"
+      - "127.0.0.1:${DB_HOST_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 20

@@ -84,7 +84,7 @@
 
 |  ID | 作業                                           | 状態 | 完了日 | 備考                   |
 | --: | ---------------------------------------------- | ---- | ------ | ----------------------- |
-| 6.1 | コンテナ化（Dockerfile multi-stage） | △ | - | backend(Gradle/JDK17・非root・plain jar無効化)、frontend、本番用(Caddy)のDockerfileとcompose定義を作成。Docker実機でのビルド・起動確認はDocker起動が必要なため11.8で実施 |
+| 6.1 | コンテナ化（Dockerfile multi-stage） | 〇 | 2026/10/13 | backend(Gradle/JDK17・非root)、frontend、本番用(Caddy)のDockerfileとcompose。開発用composeと本番用composeをDocker実機で起動し、画面表示・SPAフォールバック・API・actuator非公開・セキュリティヘッダーを確認 |
 | 6.2 | レジストリ & デプロイ手順整備 | 〇 | 2026/10/13 | GHCR運用とサーバー手順を `docs/operations/deployment.md` に整備。タグpushで `release.yml` がイメージを公開 |
 | 6.3 | Infra テンプレート作成（Bicep/Terraform） | 〇 | 2026/10/13 | 設計書の構成（単一VPS+Compose+Caddy）に合わせ、Bicep/Terraformの代わりに `docker-compose.prod.yml`・`docker/caddy/Caddyfile`・`.env.prod.example` を作成。マネージドクラウド採用時にIaCを追加 |
 | 6.4 | GitHub Actions: build/test/deploy ワークフロー | 〇 | 2026/10/13 | ci.yml（frontend/backend/e2e）と release.yml（GHCR公開・Release作成・任意のSSHデプロイ）。デプロイジョブは `DEPLOY_ENABLED` とSecrets設定時のみ有効 |
@@ -113,8 +113,8 @@
 |  ID | 作業                     | 状態 | 完了日 | 備考             |
 | --: | ------------------------ | ---- | ------ | ---------------- |
 | 9.1 | リリースビルド作成・検証 | 〇 | 2026/10/13 | bootJar生成と起動(readiness 200)、`npm run build`、CI全ジョブ成功を確認。手順は `docs/operations/release-checklist.md` |
-| 9.2 | デプロイ実行・検証       | ×    | -      | 手順書に従う     |
-| 9.3 | ロールアウト監視         | ×    | -      | モニタリング確認 |
+| 9.2 | デプロイ実行・検証 | △ | - | 手順書（`docs/operations/deployment.md`）と `release.yml` のSSHデプロイを整備し、本番相当の `docker-compose.prod.yml` はローカルで起動確認済み。実サーバー（VPS/ドメイン/GHCR公開）が未契約のため実デプロイは条件付きで未実施 |
+| 9.3 | ロールアウト監視 | △ | - | 監視手順（`docs/operations/monitoring.md`）・Runbook・外形監視項目を整備。公開環境が無いためロールアウト監視の実施は条件付きで未実施 |
 
 10. フロントエンド・バックエンド結合
 
@@ -137,6 +137,6 @@
 | 11.5 | 体重のアカウント保存 | 〇 | 2026/10/13 | V6で `users.body_weight_kg`、`PUT /auth/me/profile`。ブラウザにはキャッシュとして保持 |
 | 11.6 | 画面表示（Record/履歴/履歴詳細） | 〇 | 2026/10/13 | セット別・合計の推定kcalを表示。未計算は空欄/対象外 |
 | 11.7 | CIにバックエンドテスト追加・型チェック修正 | 〇 | 2026/10/13 | ci.ymlにbackendジョブ、`vite-env.d.ts`追加。`main`・`ichikawa_work` へのpushと `main` 宛PRで起動 |
-| 11.8 | MySQL/Docker環境での結合確認 | △ | - | MySQL 8.0.43実機でV1〜V7適用・API・E2E成功は確認済み。Docker Compose（`docker compose up --build`）での起動確認のみ、Docker起動が必要なため未実施 |
+| 11.8 | MySQL/Docker環境での結合確認 | 〇 | 2026/10/13 | `docker compose up --build`（MySQL 8.4）でV1〜V7適用、Backend起動、再起動後もhealthy、E2E成功を確認。MySQLのhealthcheck不具合（healthcheck.sh非存在）を修正し、3306使用中でも `DB_HOST_PORT` で変更可能に |
 | 11.9 | カロリー計算の境界値テスト | 〇 | 2026/10/13 | RPE帯の境界（1/4/5/7/8/10）、REP/MINUTEの不一致、体重20/300kgの境界、丸め（3.675→3.68）、係数なし・独自種目・存在しない種目の422を検証 |
 | 11.10 | CIのフロントジョブ修正（Node設定） | 〇 | 2026/10/13 | 初回実行で Setup Node.js が失敗。`.nvmrc` 参照・lockファイルのパス指定・`npm ci` へ変更し、再実行でフロント/バックエンドとも成功を確認 |
