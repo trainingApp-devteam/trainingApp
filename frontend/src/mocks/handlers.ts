@@ -17,11 +17,27 @@ const exercises = [
 
 let nextExerciseId = exercises.length + 1
 let nextEstimateId = 1
+const estimates = new Map<number, number>()
 let sessions: Array<Record<string, any>> = []
 let measurements: Array<Record<string, any>> = []
 let routines: Array<Record<string, any>> = []
 let nextId = 1
 let account: Record<string, any> = { id: 1, username: 'demo', displayName: 'デモユーザー', role: 'USER', bodyWeightKg: null }
+
+function sessionResponse(session: Record<string, any>) {
+  return {
+    ...session,
+    exercises: (session.exercises || []).map((exercise: Record<string, any>) => ({
+      ...exercise,
+      exerciseName: exercises.find((item) => item.id === exercise.exerciseId)?.name,
+      category: exercises.find((item) => item.id === exercise.exerciseId)?.category,
+      sets: (exercise.sets || []).map((set: Record<string, any>) => ({
+        ...set,
+        estimatedCaloriesKcal: set.calorieEstimateId ? estimates.get(set.calorieEstimateId) ?? null : null,
+      })),
+    })),
+  }
+}
 
 function routineResponse(routine: Record<string, any>) {
   return {
@@ -79,23 +95,23 @@ export const handlers = [
     const page = Number(req.url.searchParams.get('page') || 0)
     const size = Number(req.url.searchParams.get('size') || 20)
     const start = page * size
-    return res(ctx.json({ content: sessions.slice(start, start + size), page, size, totalElements: sessions.length, totalPages: Math.ceil(sessions.length / size) }))
+    return res(ctx.json({ content: sessions.slice(start, start + size).map(sessionResponse), page, size, totalElements: sessions.length, totalPages: Math.ceil(sessions.length / size) }))
   }),
   rest.post('/api/v1/training-sessions', async (req, res, ctx) => {
     const body = await req.json()
     const session = { ...body, id: nextId++, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
     sessions.unshift(session)
-    return res(ctx.status(201), ctx.json(session))
+    return res(ctx.status(201), ctx.json(sessionResponse(session)))
   }),
   rest.get('/api/v1/training-sessions/:id', (req, res, ctx) => {
     const session = sessions.find((item) => item.id === Number(req.params.id))
-    return session ? res(ctx.json(session)) : res(ctx.status(404))
+    return session ? res(ctx.json(sessionResponse(session))) : res(ctx.status(404))
   }),
   rest.put('/api/v1/training-sessions/:id', async (req, res, ctx) => {
     const index = sessions.findIndex((item) => item.id === Number(req.params.id))
     if (index < 0) return res(ctx.status(404))
     sessions[index] = { ...sessions[index], ...await req.json(), updatedAt: new Date().toISOString() }
-    return res(ctx.json(sessions[index]))
+    return res(ctx.json(sessionResponse(sessions[index])))
   }),
   rest.delete('/api/v1/training-sessions/:id', (req, res, ctx) => {
     sessions = sessions.filter((item) => item.id !== Number(req.params.id))
@@ -133,8 +149,10 @@ export const handlers = [
     const activeSeconds = body.basis === 'REP' ? body.reps * 3 : body.durationSeconds
     const metValue = body.rpe >= 7 ? 6 : 3.5
     const estimatedCaloriesKcal = Math.round(metValue * 3.5 * body.bodyWeightKg / 200 * activeSeconds / 60 * 100) / 100
+    const estimateId = nextEstimateId++
+    estimates.set(estimateId, estimatedCaloriesKcal)
     return res(ctx.status(201), ctx.json({
-      estimateId: nextEstimateId++,
+      estimateId,
       exerciseId: body.exerciseId,
       exerciseCode: String(body.exerciseId),
       basis: body.basis,

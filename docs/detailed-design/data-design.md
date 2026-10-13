@@ -52,6 +52,7 @@ erDiagram
 | `display_name` | VARCHAR(100) NOT NULL |  | 画面表示名 |
 | `role` | VARCHAR(20) NOT NULL | CHECK | `ADMIN`または`USER` |
 | `status` | VARCHAR(24) NOT NULL | CHECK | `PENDING_APPROVAL`, `ACTIVE`, `REJECTED` |
+| `body_weight_kg` | DECIMAL(5,2) NULL | CHECK 20〜300 | カロリー推定に使う体重 |
 | `created_at` | DATETIME(6) NOT NULL |  | 作成日時UTC |
 | `updated_at` | DATETIME(6) NOT NULL |  | 更新日時UTC |
 
@@ -83,7 +84,7 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 | `calorie_enabled` | BOOLEAN NOT NULL | DEFAULT FALSE | 推定係数がある標準種目か |
 | `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 作成日時 |
 
-現在のテスト用DB実装は共通標準種目のみを管理する。利用者所有の独自種目、説明、ユーザーFKは認証・カタログAPI実装時に拡張する。標準種目と推定可能フラグはFlywayで登録し、器具名だけの項目や独自種目には係数を登録しない。
+実装ではカロリー用の別テーブルは設けず、共通の`exercises`テーブル（V4）に`exercise_code`（UNIQUE、標準種目のみ）と`calorie_enabled`を追加している。標準種目は`owner_user_id IS NULL`で表す。標準種目と推定可能フラグはFlywayで登録し、器具名だけの項目や独自種目には係数を登録しない。
 
 ### 4.4 `exercise_calorie_rates`
 
@@ -108,6 +109,7 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 | カラム | 型・NULL | 制約 | 説明 |
 | --- | --- | --- | --- |
 | `id` | BIGINT NOT NULL | PK | 推定記録ID |
+| `user_id` | BIGINT NOT NULL | FK users | 推定した利用者 |
 | `exercise_code` | VARCHAR(64) NOT NULL | FK exercises.exercise_code | 計算した標準種目 |
 | `rate_id` | BIGINT NOT NULL | FK exercise_calorie_rates | 適用係数版 |
 | `basis` | VARCHAR(10) NOT NULL | `REP`/`MINUTE` | 記録形式 |
@@ -120,7 +122,7 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 | `estimated_calories_kcal` | DECIMAL(10,2) NOT NULL | >= 0 | 小数第2位に丸めた推定値 |
 | `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 推定日時 |
 
-初期実装では推定入力と結果をDBへ保存する。トレーニング記録テーブルとのFK連携は、記録APIのDB永続化時に追加する。
+推定入力と結果をDBへ保存する。トレーニング記録のセットは`set_records.calorie_estimate_id`でこの推定を参照する。
 
 ### 4.5 `training_sessions`
 
@@ -155,11 +157,10 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 | `reps` | INT NULL | CHECK > 0 | 回数形式の値 |
 | `duration_seconds` | INT NULL | CHECK > 0 | 時間形式の値。秒 |
 | `weight_kg` | DECIMAL(7,2) NULL | CHECK >= 0 | 任意重量kg |
-| `calorie_rate_id` | BIGINT NULL | FK exercise_calorie_rates | 計算に適用した係数版 |
-| `estimated_calories_kcal` | DECIMAL(10,2) NULL | CHECK >= 0 | 記録時に計算して保存したセット別推定値 |
+| `calorie_estimate_id` | BIGINT NULL | FK exercise_calorie_estimates | このセットの推定結果。係数版・推定値は参照先に保存される |
 | `created_at` | DATETIME(6) NOT NULL |  | 作成日時UTC |
 
-CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NULLであることを保証する。重量はどちらの記録形式にも任意で付与できる。適用係数と推定値は記録時点のスナップショットとして保存し、係数マスタの改訂で過去値を再計算しない。
+CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NULLであることを保証する。重量はどちらの記録形式にも任意で付与できる。適用係数と推定値は`exercise_calorie_estimates`にスナップショットとして保存し、係数マスタの改訂で過去値を再計算しない。
 
 ### 4.8 `routines` と `routine_exercises`
 
@@ -211,7 +212,7 @@ CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NU
 - `training_sessions(user_id, training_date, created_at)` INDEX。
 - `session_exercises(session_id, display_order)` UNIQUE。
 - `set_records(session_exercise_id, set_number)` UNIQUE。
-- `exercise_calorie_rates(exercise_id, basis, version)` UNIQUE、および`(exercise_id, basis, enabled)` INDEX。
+- `exercise_calorie_rates(exercise_code, basis, rpe_min, rpe_max, version)` UNIQUE。
 - `routines(user_id, name)`は必要に応じて重複を禁止する。初期案では同名メニューを許可する。
 - `routine_exercises(routine_id, display_order)` UNIQUE。
 - `body_measurements(user_id, measurement_type_id, measured_at)` INDEX。

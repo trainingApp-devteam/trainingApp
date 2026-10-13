@@ -42,7 +42,8 @@
 | `POST` | `/auth/login` | 公開 | ユーザー名・パスワードでログイン |
 | `POST` | `/auth/logout` | ログイン必須 | セッション無効化 |
 | `POST` | `/auth/refresh` | ログイン必須 | セッションID更新 |
-| `GET` | `/auth/me` | ログイン必須 | 自分のアカウント情報 |
+| `GET` | `/auth/me` | ログイン必須 | 自分のアカウント情報（推定用体重 `bodyWeightKg` を含む） |
+| `PUT` | `/auth/me/profile` | ログイン必須 | 推定用体重（20〜300kg）の更新 |
 | `GET` | `/auth/csrf` | 公開 | CSRFトークン取得 |
 | `POST` | `/invitations/accept` | 有効な招待トークン | アカウント申請。状態は承認待ち |
 | `POST` | `/admin/invitations` | Admin | 招待発行 |
@@ -162,11 +163,12 @@
 - `GET /statistics/exercises/{exerciseId}`は本人の種目履歴のみ返す。期間指定を受け付ける。
 - 最大重量は重量が存在するセットから計算する。
 - トレーニング量は重量と回数が両方存在するセットのみ`weightKg * reps`で集計する。時間セットは含めない。
-- `POST /calorie-estimates`は`exerciseCode`, `basis`, `rpe`, `bodyWeightKg`と、回数形式なら`reps`、時間形式なら`durationSeconds`を受け取る。`externalLoadKg`は任意。
+- `POST /calorie-estimates`は`exerciseId`（標準種目のID）, `basis`, `rpe`, `bodyWeightKg`と、回数形式なら`reps`、時間形式なら`durationSeconds`を受け取る。`externalLoadKg`は任意。
 - 係数はサーバー側のDBから種目・形式・RPE帯で選択する。クライアントが送信したMETや推定カロリー値は信用しない。
 - 回数形式はDBの`secondsPerRep × reps`を動作秒数とし、時間形式は`durationSeconds`を使う。MET式で計算後、係数IDと入力を含む推定結果をDBへ保存する。
 - 未対応の独自種目・器具項目・負荷帯は`422`とし、カロリーを0に偽装しない。
 - `GET /exercises/{id}/calorie-rates`は`basis`, `rpeMin`, `rpeMax`, `metValue`, `secondsPerRep`, `version`, `source`を返す。係数管理APIは設けず、Flyway seedで登録する。
+- 記録保存時のセットは任意で`calorieEstimateId`を受け取る。推定が本人のもので、同じ標準種目に対するものでなければ`400`とする。記録の取得結果は`calorieEstimateId`と`estimatedCaloriesKcal`を返す。
 - 消費カロリーは推定値として表示し、医学的・生理学的な精度を保証しない。
 
 ## 9. CSVエクスポート

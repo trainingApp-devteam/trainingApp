@@ -76,6 +76,7 @@ export default function History(): JSX.Element {
                       <div>
                         <div className="font-medium"><Link className="underline" to={`/history/${it.id}`}>{it.date} — {exMap[it.exerciseId] || it.exerciseId}</Link></div>
                         <div className="text-sm text-gray-300">{it.sets.map((s) => renderSet(s)).join(' | ')}</div>
+                        {it.sets.some((s) => s.estimatedCaloriesKcal !== undefined) && <div className="text-sm text-gray-400">推定消費カロリー: {Math.round(it.sets.reduce((sum, s) => sum + (s.estimatedCaloriesKcal ?? 0), 0) * 100) / 100} kcal（推定値）</div>}
                       </div>
                       <div className="flex gap-2">
                         <Link to={`/history/${it.id}`} className="px-3 py-1 rounded bg-blue-600">詳細</Link>
