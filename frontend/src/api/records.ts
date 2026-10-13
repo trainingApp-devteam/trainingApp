@@ -20,12 +20,14 @@ export type RecordItem = {
   id: string
   date: string
   exerciseId: string
+  note?: string
   sets: SetItem[]
 }
 
 type BackendSession = {
   id: number
   trainingDate: string
+  note?: string | null
   exercises: Array<{
     exerciseId: number
     exerciseName: string
@@ -52,6 +54,7 @@ function mapSession(session: BackendSession): RecordItem {
     id: String(session.id),
     date: session.trainingDate,
     exerciseId: sets[0]?.exerciseId || '',
+    note: session.note ?? undefined,
     sets,
   }
 }
@@ -92,30 +95,35 @@ export async function getRecord(id: string): Promise<RecordItem> {
   return mapSession(await apiRequest<BackendSession>(`/training-sessions/${encodeURIComponent(id)}`))
 }
 
-export async function createRecord(body: Omit<RecordItem, 'id'>): Promise<RecordItem> {
+function buildSessionBody(body: Omit<RecordItem, 'id'>) {
   const grouped = new Map<string, SetItem[]>()
   body.sets.forEach((set) => {
     const exerciseId = set.exerciseId || body.exerciseId
     if (!exerciseId) throw new Error('種目を選択してください')
     grouped.set(exerciseId, [...(grouped.get(exerciseId) || []), set])
   })
-  const session = await apiRequest<BackendSession>('/training-sessions', {
-    method: 'POST',
-    body: JSON.stringify({
-      trainingDate: body.date,
-      exercises: [...grouped.entries()].map(([exerciseId, sets], index) => ({
-        exerciseId: Number(exerciseId),
-        displayOrder: index + 1,
-        sets: sets.map((set) => ({
-          reps: set.type === 'reps' ? set.reps : undefined,
-          durationSeconds: set.type === 'time' ? set.timeSeconds : undefined,
-          weightKg: set.weight,
-          calorieEstimateId: set.calorieEstimateId,
-        })),
+  return JSON.stringify({
+    trainingDate: body.date,
+    note: body.note,
+    exercises: [...grouped.entries()].map(([exerciseId, sets], index) => ({
+      exerciseId: Number(exerciseId),
+      displayOrder: index + 1,
+      sets: sets.map((set) => ({
+        reps: set.type === 'reps' ? set.reps : undefined,
+        durationSeconds: set.type === 'time' ? set.timeSeconds : undefined,
+        weightKg: set.weight,
+        calorieEstimateId: set.calorieEstimateId,
       })),
-    }),
+    })),
   })
-  return mapSession(session)
+}
+
+export async function createRecord(body: Omit<RecordItem, 'id'>): Promise<RecordItem> {
+  return mapSession(await apiRequest<BackendSession>('/training-sessions', { method: 'POST', body: buildSessionBody(body) }))
+}
+
+export async function updateRecord(id: string, body: Omit<RecordItem, 'id'>): Promise<RecordItem> {
+  return mapSession(await apiRequest<BackendSession>(`/training-sessions/${encodeURIComponent(id)}`, { method: 'PUT', body: buildSessionBody(body) }))
 }
 
 export async function deleteRecord(id: string): Promise<void> {
