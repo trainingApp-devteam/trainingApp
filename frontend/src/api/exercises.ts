@@ -1,4 +1,10 @@
-export type Exercise = { id: string; name: string; group?: string }
+export type Exercise = {
+  id: string
+  name: string
+  group?: string
+  isBuiltin?: boolean
+  calorieEnabled?: boolean
+}
 
 export async function searchExercises(q = '', category?: string): Promise<Exercise[]> {
   const url = new URL('/api/exercises', location.origin)

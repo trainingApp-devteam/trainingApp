@@ -58,7 +58,8 @@
 | `GET`, `POST` | `/body-measurements` | ログイン、本人データ | 測定一覧・追加 |
 | `PUT`, `DELETE` | `/body-measurements/{id}` | ログイン、本人データ | 測定更新・個別削除 |
 | `GET` | `/statistics/exercises/{exerciseId}` | ログイン、本人データ | 種目別推移 |
-| `GET` | `/exercises/{id}/calorie-rates` | ログイン | 種目・記録形式別の有効係数 |
+| `GET` | `/exercises/{id}/calorie-rates` | ログイン | 種目・記録形式・RPE帯別のMET係数 |
+| `POST` | `/calorie-estimates` | ログイン | 標準種目の消費カロリーを推定し、入力・係数・結果を保存 |
 
 アカウント削除と利用者の全データ一括削除に対応するAPIは初期リリースで作成しない。
 
@@ -146,10 +147,11 @@
 - `GET /statistics/exercises/{exerciseId}`は本人の種目履歴のみ返す。期間指定を受け付ける。
 - 最大重量は重量が存在するセットから計算する。
 - トレーニング量は重量と回数が両方存在するセットのみ`weightKg * reps`で集計する。時間セットは含めない。
-- 回数形式は`kcalPerRep * reps`、時間形式は`kcalPerMinute * durationSeconds / 60`で計算する。有効な係数がない場合は`estimatedCaloriesKcal: null`とする。
-- 係数はサーバー側のDBから取得する。作成・更新要求でクライアントが送った消費カロリー値や係数を信用しない。
-- セット別推定値、適用した係数ID、セッション合計を記録レスポンスに含める。係数未登録セットは合計対象外とし、画面で未計算を識別できるようにする。
-- `GET /exercises/{id}/calorie-rates`は`basis`, `kcalPerUnit`, `unit`, `version`を返す。係数の管理APIは初期版では提供せず、承認済みseed/マイグレーションで投入する。
+- `POST /calorie-estimates`は`exerciseCode`, `basis`, `rpe`, `bodyWeightKg`と、回数形式なら`reps`、時間形式なら`durationSeconds`を受け取る。`externalLoadKg`は任意。
+- 係数はサーバー側のDBから種目・形式・RPE帯で選択する。クライアントが送信したMETや推定カロリー値は信用しない。
+- 回数形式はDBの`secondsPerRep × reps`を動作秒数とし、時間形式は`durationSeconds`を使う。MET式で計算後、係数IDと入力を含む推定結果をDBへ保存する。
+- 未対応の独自種目・器具項目・負荷帯は`422`とし、カロリーを0に偽装しない。
+- `GET /exercises/{id}/calorie-rates`は`basis`, `rpeMin`, `rpeMax`, `metValue`, `secondsPerRep`, `version`, `source`を返す。係数管理APIは設けず、Flyway seedで登録する。
 - 消費カロリーは推定値として表示し、医学的・生理学的な精度を保証しない。
 
 ## 9. CSVエクスポート

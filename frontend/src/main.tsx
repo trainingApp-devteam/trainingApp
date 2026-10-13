@@ -13,7 +13,7 @@ function renderApp() {
 
 if (import.meta.env.DEV) {
   // MSW を開発時に起動し、起動完了後にアプリをレンダリングする
-  import('./mocks/browser').then(({ worker }) => worker.start().then(() => renderApp()));
+  import('./mocks/browser').then(({ worker }) => worker.start({ onUnhandledRequest: 'bypass' }).then(() => renderApp()));
 } else {
   renderApp();
 }

@@ -21,7 +21,11 @@ const sampleExercises = [
   { id: 'bench_press', name: 'ベンチプレス', group: '胸' },
   { id: 'power_rack', name: 'パワーラック', group: 'フリーウェイト' },
   { id: 'dips_chinning', name: 'ディップス・チンニングマシン', group: '背中' },
-]
+].map((exercise) => ({
+  ...exercise,
+  isBuiltin: true,
+  calorieEnabled: !['dumbbell', 'smith_machine', 'power_rack'].includes(exercise.id),
+}))
 
 let records = [
   {
@@ -86,7 +90,7 @@ export const handlers = [
       const raw = String(body.name || '')
       const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
       const id = slug ? `${slug}_${Date.now()}` : `ex_${Date.now()}`
-      const ex = { id, name: raw, group: body.group || 'その他' }
+      const ex = { id, name: raw, group: body.group || 'その他', isBuiltin: false, calorieEnabled: false }
       sampleExercises.push(ex)
       return res(ctx.status(201), ctx.json(ex))
     } catch (e) {

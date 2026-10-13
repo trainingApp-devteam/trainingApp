@@ -6,5 +6,8 @@ export default defineConfig({
   root: ".",
   server: {
     port: 5173,
+    proxy: {
+      '/api/calorie-estimates': process.env.VITE_BACKEND_TARGET || 'http://localhost:8080',
+    },
   },
 });

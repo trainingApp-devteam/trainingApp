@@ -76,30 +76,51 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 
 | カラム | 型・NULL | 制約 | 説明 |
 | --- | --- | --- | --- |
-| `id` | BIGINT NOT NULL | PK | 種目ID |
-| `owner_user_id` | BIGINT NULL | FK users, INDEX | NULLは全利用者共通の標準種目。値ありは登録者独自種目 |
+| `exercise_code` | VARCHAR(64) NOT NULL | PK | 標準種目の安定コード |
 | `name` | VARCHAR(100) NOT NULL |  | 種目名 |
-| `category` | VARCHAR(50) NULL | INDEX | 任意カテゴリ |
-| `description` | VARCHAR(500) NULL |  | 説明 |
-| `created_at` | DATETIME(6) NOT NULL |  | 作成日時UTC |
+| `exercise_group` | VARCHAR(50) NOT NULL | INDEX | 種目グループ |
+| `is_builtin` | BOOLEAN NOT NULL | DEFAULT TRUE | 標準種目か |
+| `calorie_enabled` | BOOLEAN NOT NULL | DEFAULT FALSE | 推定係数がある標準種目か |
+| `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 作成日時 |
 
-独自種目の同一利用者内名称重複を防ぐ制約を設ける。標準種目データはマイグレーションまたは冪等なseedで登録する。
+現在のテスト用DB実装は共通標準種目のみを管理する。利用者所有の独自種目、説明、ユーザーFKは認証・カタログAPI実装時に拡張する。標準種目と推定可能フラグはFlywayで登録し、器具名だけの項目や独自種目には係数を登録しない。
 
 ### 4.4 `exercise_calorie_rates`
 
 | カラム | 型・NULL | 制約 | 説明 |
 | --- | --- | --- | --- |
 | `id` | BIGINT NOT NULL | PK | 係数版ID |
-| `exercise_id` | BIGINT NOT NULL | FK exercises | 対象種目 |
+| `exercise_code` | VARCHAR(64) NOT NULL | FK exercises.exercise_code | 対象標準種目 |
 | `basis` | VARCHAR(10) NOT NULL | CHECK | `REP`または`MINUTE` |
-| `kcal_per_unit` | DECIMAL(10,5) NOT NULL | CHECK > 0 | 1回または1分あたり係数 |
-| `source` | VARCHAR(255) NOT NULL |  | 算出根拠・出典 |
-| `version` | INT NOT NULL | UNIQUE(exercise_id, basis, version) | 係数版 |
+| `rpe_min`, `rpe_max` | TINYINT NOT NULL | 1〜10、範囲重複なし | 適用するRPE帯 |
+| `met_value` | DECIMAL(4,2) NOT NULL | CHECK > 0 | MET係数 |
+| `seconds_per_rep` | DECIMAL(5,2) NULL | REPで正数、MINUTEでNULL | 1回の推定動作時間。初期値3秒 |
+| `source` | VARCHAR(500) NOT NULL |  | Compendium出典とRPE対応の推定条件 |
+| `version` | INT NOT NULL | UNIQUE(exercise_code, basis, rpe_min, rpe_max, version) | 係数版 |
 | `effective_from` | DATE NOT NULL |  | 適用開始日 |
 | `enabled` | BOOLEAN NOT NULL |  | 新規計算への適用可否 |
-| `created_at` | DATETIME(6) NOT NULL |  | 登録日時UTC |
+| `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 登録日時 |
 
-係数行は履歴を保持し、値の変更時は既存行を上書きせず新しい版を登録する。初期係数データは初期リリース前にseedする。
+カロリーは固定kcal/回ではなく、DBのMET、利用者体重、動作時間から計算する。METは2024 Adult Compendiumの活動区分を基準にし、個別種目への割当、RPE帯、3秒/回のテンポはアプリ側の推定仮定として出典欄に残す。係数改訂時は既存行を上書きせず新しい版を登録する。
+
+### 4.4.1 `exercise_calorie_estimates`
+
+| カラム | 型・NULL | 制約 | 説明 |
+| --- | --- | --- | --- |
+| `id` | BIGINT NOT NULL | PK | 推定記録ID |
+| `exercise_code` | VARCHAR(64) NOT NULL | FK exercises.exercise_code | 計算した標準種目 |
+| `rate_id` | BIGINT NOT NULL | FK exercise_calorie_rates | 適用係数版 |
+| `basis` | VARCHAR(10) NOT NULL | `REP`/`MINUTE` | 記録形式 |
+| `rpe` | TINYINT NOT NULL | 1〜10 | 計算に使用した負荷指標 |
+| `body_weight_kg` | DECIMAL(6,2) NOT NULL | 20〜300 | 計算に使用した体重 |
+| `external_load_kg` | DECIMAL(7,2) NULL | >= 0 | 入力された外部負荷。MET選択はRPEで行う |
+| `reps` | INT NULL | REP時のみ | 回数 |
+| `duration_seconds` | INT NULL | MINUTE時のみ | 有酸素運動の実施時間 |
+| `active_seconds` | DECIMAL(8,2) NOT NULL | > 0 | 計算に使った動作時間 |
+| `estimated_calories_kcal` | DECIMAL(10,2) NOT NULL | >= 0 | 小数第2位に丸めた推定値 |
+| `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 推定日時 |
+
+初期実装では推定入力と結果をDBへ保存する。トレーニング記録テーブルとのFK連携は、記録APIのDB永続化時に追加する。
 
 ### 4.5 `training_sessions`
 
