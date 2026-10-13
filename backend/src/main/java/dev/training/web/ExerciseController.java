@@ -43,11 +43,11 @@ public class ExerciseController {
         }
         String pattern = "%" + term + "%";
         return jdbc.query(
-                "SELECT id, owner_user_id, name, category, description FROM exercises "
+                "SELECT id, owner_user_id, name, category, description, calorie_enabled FROM exercises "
                         + "WHERE (owner_user_id IS NULL OR owner_user_id = (SELECT id FROM users WHERE username = ?)) "
                 + "AND name LIKE ? AND (? IS NULL OR category = ?) ORDER BY name, id",
                 (row, index) -> exercise(row.getLong("id"), row.getObject("owner_user_id") == null,
-                        row.getString("name"), row.getString("category"), row.getString("description")),
+                        row.getString("name"), row.getString("category"), row.getString("description"), row.getBoolean("calorie_enabled")),
             authentication.getName(), pattern, requestedCategory, requestedCategory);
     }
 
@@ -99,23 +99,24 @@ public class ExerciseController {
 
     private Map<String, Object> findVisible(long id, String username) {
         return jdbc.query(
-                        "SELECT id, owner_user_id, name, category, description FROM exercises "
+                        "SELECT id, owner_user_id, name, category, description, calorie_enabled FROM exercises "
                                 + "WHERE id = ? AND (owner_user_id IS NULL OR owner_user_id = (SELECT id FROM users WHERE username = ?))",
                         (row, index) -> exercise(row.getLong("id"), row.getObject("owner_user_id") == null,
-                                row.getString("name"), row.getString("category"), row.getString("description")),
+                                row.getString("name"), row.getString("category"), row.getString("description"), row.getBoolean("calorie_enabled")),
                         id, username)
                 .stream()
                 .findFirst()
                 .orElseThrow(ApiValues::notFound);
     }
 
-    private Map<String, Object> exercise(long id, boolean shared, String name, String category, String description) {
+    private Map<String, Object> exercise(long id, boolean shared, String name, String category, String description, boolean calorieEnabled) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", id);
         result.put("shared", shared);
         result.put("name", name);
         result.put("category", category);
         result.put("description", description);
+        result.put("calorieEnabled", shared && calorieEnabled);
         return result;
     }
 

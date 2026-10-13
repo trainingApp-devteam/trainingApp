@@ -243,7 +243,7 @@ export default function Record(): JSX.Element {
         if (!set.calorieEnabled || !set.exerciseId) return set
         if (!set.bodyWeightKg) throw new Error('消費カロリーを推定するには、アカウントで体重を登録してください')
         const estimate = await createCalorieEstimate({
-          exerciseCode: set.exerciseId,
+          exerciseId: Number(set.exerciseId),
           basis: set.type === 'reps' ? 'REP' : 'MINUTE',
           rpe: set.rpe || 6,
           bodyWeightKg: set.bodyWeightKg,

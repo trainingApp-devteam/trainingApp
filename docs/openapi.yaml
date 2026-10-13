@@ -218,6 +218,37 @@ paths:
         '204': { description: Deleted }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+  /exercises/{id}/calorie-rates:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Calorie estimates]
+      summary: List enabled calorie rates of a shared exercise
+      responses:
+        '200':
+          description: Rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CalorieRate' }
+  /calorie-estimates:
+    post:
+      tags: [Calorie estimates]
+      summary: Estimate and store calories for one set (shared exercises with a configured rate only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CalorieEstimateRequest' }
+      responses:
+        '201':
+          description: Estimate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CalorieEstimate' }
+        '400': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /training-sessions:
     get:
       tags: [Training sessions]
@@ -494,6 +525,42 @@ components:
           properties:
             id: { type: integer, format: int64 }
             shared: { type: boolean }
+            calorieEnabled: { type: boolean, description: True only for shared exercises with calorie rates. }
+    CalorieRate:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        basis: { type: string, enum: [REP, MINUTE] }
+        rpeMin: { type: integer }
+        rpeMax: { type: integer }
+        metValue: { type: number }
+        secondsPerRep: { type: number, nullable: true }
+        version: { type: integer }
+        source: { type: string }
+    CalorieEstimateRequest:
+      type: object
+      required: [exerciseId, basis, rpe, bodyWeightKg]
+      properties:
+        exerciseId: { type: integer, format: int64, minimum: 1 }
+        basis: { type: string, enum: [REP, MINUTE] }
+        rpe: { type: integer, minimum: 1, maximum: 10 }
+        bodyWeightKg: { type: number, minimum: 20, maximum: 300 }
+        externalLoadKg: { type: number, minimum: 0, maximum: 1000, nullable: true }
+        reps: { type: integer, minimum: 1, maximum: 500, description: Required only for REP. }
+        durationSeconds: { type: integer, minimum: 1, maximum: 86400, description: Required only for MINUTE. }
+    CalorieEstimate:
+      type: object
+      properties:
+        estimateId: { type: integer, format: int64 }
+        exerciseId: { type: integer, format: int64 }
+        exerciseCode: { type: string }
+        basis: { type: string, enum: [REP, MINUTE] }
+        rpe: { type: integer }
+        bodyWeightKg: { type: number }
+        activeSeconds: { type: number }
+        metValue: { type: number }
+        estimatedCaloriesKcal: { type: number }
+        note: { type: string }
     SetInput:
       type: object
       properties:

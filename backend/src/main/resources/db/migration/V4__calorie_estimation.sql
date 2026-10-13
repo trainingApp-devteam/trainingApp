@@ -1,11 +1,32 @@
-CREATE TABLE exercises (
-    exercise_code VARCHAR(64) NOT NULL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    exercise_group VARCHAR(50) NOT NULL,
-    is_builtin BOOLEAN NOT NULL DEFAULT TRUE,
-    calorie_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+ALTER TABLE exercises ADD COLUMN exercise_code VARCHAR(64) NULL;
+ALTER TABLE exercises ADD COLUMN calorie_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE exercises ADD CONSTRAINT uq_exercises_exercise_code UNIQUE (exercise_code);
+
+UPDATE exercises SET name = 'ディップス・チンニングマシン' WHERE owner_user_id IS NULL AND name = 'ディップス・チンニング';
+
+UPDATE exercises SET exercise_code = 'treadmill', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'トレッドミル';
+UPDATE exercises SET exercise_code = 'upright_bike', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'アップライトバイク';
+UPDATE exercises SET exercise_code = 'recumbent_bike', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'リカンベントバイク';
+UPDATE exercises SET exercise_code = 'cross_trainer', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'クロストレーナー';
+UPDATE exercises SET exercise_code = 'chest_press', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'チェストプレス';
+UPDATE exercises SET exercise_code = 'lat_pulldown', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'ラットプルダウン';
+UPDATE exercises SET exercise_code = 'overhead_press', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'オーバーヘッドプレス';
+UPDATE exercises SET exercise_code = 'leg_extension', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'レッグエクステンション';
+UPDATE exercises SET exercise_code = 'leg_curl', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'レッグカール';
+UPDATE exercises SET exercise_code = 'leg_press', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'レッグプレス';
+UPDATE exercises SET exercise_code = 'abdominal', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'アブドミナル';
+UPDATE exercises SET exercise_code = 'back_extension', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'バックエクステンション';
+UPDATE exercises SET exercise_code = 'decline_bench', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = '腹筋台';
+UPDATE exercises SET exercise_code = 'dumbbell', calorie_enabled = FALSE WHERE owner_user_id IS NULL AND name = 'ダンベル';
+UPDATE exercises SET exercise_code = 'smith_machine', calorie_enabled = FALSE WHERE owner_user_id IS NULL AND name = 'スミスマシン';
+UPDATE exercises SET exercise_code = 'bench_press', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'ベンチプレス';
+UPDATE exercises SET exercise_code = 'power_rack', calorie_enabled = FALSE WHERE owner_user_id IS NULL AND name = 'パワーラック';
+UPDATE exercises SET exercise_code = 'dips_chinning', calorie_enabled = TRUE WHERE owner_user_id IS NULL AND name = 'ディップス・チンニングマシン';
+UPDATE exercises SET exercise_code = 'squat', calorie_enabled = FALSE WHERE owner_user_id IS NULL AND name = 'スクワット';
+
+INSERT INTO exercises (name, category, exercise_code, calorie_enabled) VALUES
+    ('ヒップアブダクション・アダクション', '脚', 'hip_abduction_adduction', TRUE),
+    ('背筋台', '背中', 'hyperextension_bench', TRUE);
 
 CREATE TABLE exercise_calorie_rates (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -35,6 +56,7 @@ CREATE TABLE exercise_calorie_rates (
 
 CREATE TABLE exercise_calorie_estimates (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
     exercise_code VARCHAR(64) NOT NULL,
     rate_id BIGINT NOT NULL,
     basis VARCHAR(10) NOT NULL,
@@ -46,6 +68,8 @@ CREATE TABLE exercise_calorie_estimates (
     active_seconds DECIMAL(8,2) NOT NULL,
     estimated_calories_kcal DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_calorie_estimates_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_calorie_estimates_exercise
         FOREIGN KEY (exercise_code) REFERENCES exercises (exercise_code),
     CONSTRAINT fk_calorie_estimates_rate
@@ -58,28 +82,6 @@ CREATE TABLE exercise_calorie_estimates (
         body_weight_kg > 0 AND active_seconds > 0 AND estimated_calories_kcal >= 0
     )
 );
-
-INSERT INTO exercises (exercise_code, name, exercise_group, is_builtin, calorie_enabled) VALUES
-    ('treadmill', 'トレッドミル', '有酸素', TRUE, TRUE),
-    ('upright_bike', 'アップライトバイク', '有酸素', TRUE, TRUE),
-    ('recumbent_bike', 'リカンベントバイク', '有酸素', TRUE, TRUE),
-    ('cross_trainer', 'クロストレーナー', '有酸素', TRUE, TRUE),
-    ('chest_press', 'チェストプレス', '胸', TRUE, TRUE),
-    ('lat_pulldown', 'ラットプルダウン', '背中', TRUE, TRUE),
-    ('overhead_press', 'オーバーヘッドプレス', '肩', TRUE, TRUE),
-    ('leg_extension', 'レッグエクステンション', '脚', TRUE, TRUE),
-    ('leg_curl', 'レッグカール', '脚', TRUE, TRUE),
-    ('leg_press', 'レッグプレス', '脚', TRUE, TRUE),
-    ('hip_abduction_adduction', 'ヒップアブダクション・アダクション', '脚', TRUE, TRUE),
-    ('abdominal', 'アブドミナル', '腹', TRUE, TRUE),
-    ('back_extension', 'バックエクステンション', '背中', TRUE, TRUE),
-    ('decline_bench', '腹筋台', '腹', TRUE, TRUE),
-    ('hyperextension_bench', '背筋台', '背中', TRUE, TRUE),
-    ('dumbbell', 'ダンベル', 'フリーウェイト', TRUE, FALSE),
-    ('smith_machine', 'スミスマシン', 'フリーウェイト', TRUE, FALSE),
-    ('bench_press', 'ベンチプレス', '胸', TRUE, TRUE),
-    ('power_rack', 'パワーラック', 'フリーウェイト', TRUE, FALSE),
-    ('dips_chinning', 'ディップス・チンニングマシン', '背中', TRUE, TRUE);
 
 INSERT INTO exercise_calorie_rates
     (exercise_code, basis, rpe_min, rpe_max, met_value, seconds_per_rep, source, effective_from)

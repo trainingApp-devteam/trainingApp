@@ -4,20 +4,26 @@ import { MemoryRouter } from 'react-router-dom'
 import { getAccountBodyWeight, saveAccountBodyWeight } from '../../api/accountProfile'
 import Account from '../Account'
 
+vi.mock('../../api/auth', () => ({
+  getCurrentAccount: vi.fn(async () => ({ id: 1, username: 'test-user', displayName: 'Test User', role: 'USER' })),
+  login: vi.fn(),
+  logout: vi.fn(),
+  acceptInvitation: vi.fn(),
+}))
+
 describe('Account page', () => {
   beforeEach(() => {
     localStorage.clear()
-    localStorage.setItem('trainingapp:authUser', JSON.stringify({ username: 'test-user' }))
   })
 
   test('saves the account body weight for calorie estimates', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Account /></MemoryRouter>)
 
-    await user.type(screen.getByLabelText('体重（kg）'), '63.5')
+    await user.type(await screen.findByLabelText('体重（kg）'), '63.5')
     await user.click(screen.getByRole('button', { name: '保存' }))
 
-    expect(screen.getByRole('status')).toHaveTextContent('体重を保存しました')
+    expect(await screen.findByRole('status')).toHaveTextContent('体重を保存しました')
     expect(localStorage.getItem('trainingApp.accountProfile:test-user')).toBe('{"bodyWeightKg":63.5}')
   })
 

@@ -31,9 +31,12 @@ services:
   backend:
     build: ./backend
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/training_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
-      SPRING_DATASOURCE_USERNAME: training_app
-      SPRING_DATASOURCE_PASSWORD: training_app_local
+      DB_URL: jdbc:mysql://db:3306/training_app?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      DB_USERNAME: training_app
+      DB_PASSWORD: training_app_local
+      SESSION_COOKIE_SECURE: "false"
+      TRAININGAPP_ADMIN_USERNAME: admin
+      TRAININGAPP_ADMIN_PASSWORD: local-test-password
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

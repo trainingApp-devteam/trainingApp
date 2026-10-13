@@ -349,6 +349,45 @@ class ApiIntegrationTest {
             .andExpect(status().isNoContent());
     }
 
+    @Test
+    void estimatesCaloriesOnlyForBuiltInExercisesWithRates() throws Exception {
+        MockHttpSession session = login(owner);
+        long benchPress = jdbc.queryForObject(
+                "SELECT id FROM exercises WHERE exercise_code = 'bench_press'", Long.class);
+        long dumbbell = jdbc.queryForObject(
+                "SELECT id FROM exercises WHERE exercise_code = 'dumbbell'", Long.class);
+
+        mockMvc.perform(post("/api/v1/calorie-estimates")
+                        .session(session)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"exerciseId\":" + benchPress + ",\"basis\":\"REP\",\"rpe\":8,\"bodyWeightKg\":60,\"reps\":10}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.exerciseCode").value("bench_press"))
+                .andExpect(jsonPath("$.activeSeconds").value(30.0))
+                .andExpect(jsonPath("$.estimatedCaloriesKcal").value(3.15));
+
+        mockMvc.perform(post("/api/v1/calorie-estimates")
+                        .session(session)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"exerciseId\":" + dumbbell + ",\"basis\":\"REP\",\"rpe\":8,\"bodyWeightKg\":60,\"reps\":10}"))
+                .andExpect(status().isUnprocessableEntity());
+
+        mockMvc.perform(post("/api/v1/calorie-estimates")
+                        .session(session)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"exerciseId\":" + benchPress + ",\"basis\":\"REP\",\"rpe\":8,\"bodyWeightKg\":10,\"reps\":10}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/calorie-estimates")
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
     private MockHttpSession login(String username) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .with(csrf())

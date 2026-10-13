@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Record from '../Record'
 import { MemoryRouter } from 'react-router-dom'
@@ -27,20 +27,10 @@ describe('Record page', () => {
     expect(await screen.findByRole('combobox', { name: /部位|種目/ })).toBeTruthy()
   })
 
-<<<<<<< HEAD
-  test('selecting an existing exercise and adding a set shows its name', async () => {
-    const user = userEvent.setup()
-    const option = await screen.findByRole('option', { name: '既存種目' })
-    const selects = screen.getAllByRole('combobox')
-    const exerciseSelect = selects.find((select) => within(select).queryByRole('option', { name: '既存種目' }))
-    if (!exerciseSelect) throw new Error('exercise select not found')
-    await user.selectOptions(exerciseSelect, option as HTMLOptionElement)
-=======
   test('adds the selected exercise to the set list', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Record /></MemoryRouter>)
     expect(await screen.findByRole('option', { name: '既存種目' })).toBeInTheDocument()
->>>>>>> 3dd71bc16ad53b976676a283f5be393cace8c33a
     const addBtn = screen.getByRole('button', { name: /セットを追加/ })
     await user.click(addBtn)
 

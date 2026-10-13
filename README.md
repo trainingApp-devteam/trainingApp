@@ -1,7 +1,6 @@
 # trainingApp
 筋トレ記録アプリ
 
-<<<<<<< HEAD
 ## Backend
 
 Java 17以降が必要です。Gradle Wrapperを使用し、ローカルではH2で起動できます。
@@ -50,7 +49,7 @@ npm run dev
 開発プロファイルのDBはH2インメモリです。Frontendを再読み込みしてもデータは保持されますが、Backendを再起動するとユーザー、記録、身体測定、ルーティンは初期化されます。永続DB接続は別タスクです。
 
 MSWを使う場合だけ、Frontend起動前に`$env:VITE_USE_MSW = "true"`を設定します。既定では実Backendへ接続します。
-=======
+
 ## テスト環境
 
 Docker Desktopを起動し、リポジトリルートで実行します。
@@ -60,10 +59,9 @@ docker compose up --build
 ```
 
 - Frontend: http://localhost:5173
-- Calorie API: http://localhost:8080
+- Backend API: http://localhost:8080（消費カロリー推定は POST /api/v1/calorie-estimates）
 - MySQL: 127.0.0.1:3306（ローカル接続のみ）
 
-初回起動時にFlywayが標準種目と推定係数を投入します。推定にはRPE、体重、動作時間を使い、入力と推定結果は`exercise_calorie_estimates`へ保存します。DB資格情報はローカルテスト専用です。
+初回起動時にFlywayが標準種目と推定係数を投入します。ログインには、docker-compose.yml の TRAININGAPP_ADMIN_USERNAME / TRAININGAPP_ADMIN_PASSWORD で作成される初期Adminを使います。推定にはRPE、体重、動作時間を使い、入力と推定結果は`exercise_calorie_estimates`へ保存します。DB資格情報はローカルテスト専用です。
 
 DBを残して停止する場合は`docker compose down`、全テストデータを削除して初期化する場合は`docker compose down -v`を使います。
->>>>>>> 3dd71bc16ad53b976676a283f5be393cace8c33a

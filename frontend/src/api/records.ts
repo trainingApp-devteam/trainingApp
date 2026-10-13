@@ -23,7 +23,6 @@ export type RecordItem = {
   sets: SetItem[]
 }
 
-<<<<<<< HEAD
 type BackendSession = {
   id: number
   trainingDate: string
@@ -53,9 +52,10 @@ function mapSession(session: BackendSession): RecordItem {
     exerciseId: sets[0]?.exerciseId || '',
     sets,
   }
-=======
+}
+
 export type CalorieEstimateRequest = {
-  exerciseCode: string
+  exerciseId: number
   basis: 'REP' | 'MINUTE'
   rpe: number
   bodyWeightKg: number
@@ -66,6 +66,7 @@ export type CalorieEstimateRequest = {
 
 export type CalorieEstimate = {
   estimateId: number
+  exerciseId: number
   exerciseCode: string
   basis: 'REP' | 'MINUTE'
   rpe: number
@@ -77,14 +78,7 @@ export type CalorieEstimate = {
 }
 
 export async function createCalorieEstimate(body: CalorieEstimateRequest): Promise<CalorieEstimate> {
-  const res = await fetch('/api/calorie-estimates', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error('消費カロリーの推定に失敗しました')
-  return res.json()
->>>>>>> 3dd71bc16ad53b976676a283f5be393cace8c33a
+  return apiRequest<CalorieEstimate>('/calorie-estimates', { method: 'POST', body: JSON.stringify(body) })
 }
 
 export async function listRecords(): Promise<RecordItem[]> {
