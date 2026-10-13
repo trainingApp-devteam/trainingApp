@@ -20,6 +20,9 @@ export default function HistoryDetail(): JSX.Element {
     return `${s.timeSeconds}秒${s.weight ? ` × ${s.weight}kg` : ''}`
   }
 
+  const totalKcal = item?.sets.reduce((sum, set) => sum + (set.estimatedCaloriesKcal ?? 0), 0) ?? 0
+  const hasKcal = item?.sets.some((set) => set.estimatedCaloriesKcal !== undefined) ?? false
+
   if (loading) return <div className="container mx-auto px-4 py-10">読み込み中...</div>
   if (error) return <div className="container mx-auto px-4 py-10 text-red-400">{error}</div>
   if (!item) return <div className="container mx-auto px-4 py-10">データが見つかりません。</div>
@@ -37,9 +40,10 @@ export default function HistoryDetail(): JSX.Element {
         <div className="mb-3">セット:</div>
         <ul className="space-y-2">
           {item.sets.map((s, i) => (
-            <li key={i} className="bg-gray-800/40 p-2 rounded">{s.exerciseName ? `${s.exerciseName}: ` : ''}{renderSet(s)}</li>
+            <li key={i} className="bg-gray-800/40 p-2 rounded">{s.exerciseName ? `${s.exerciseName}: ` : ''}{renderSet(s)}{s.estimatedCaloriesKcal !== undefined ? `（推定 ${s.estimatedCaloriesKcal} kcal）` : ''}</li>
           ))}
         </ul>
+        {hasKcal && <div className="mt-3">推定消費カロリー合計: <span className="font-medium">{Math.round(totalKcal * 100) / 100} kcal</span>（推定値）</div>}
       </div>
     </div>
   )

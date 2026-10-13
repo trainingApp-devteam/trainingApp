@@ -36,3 +36,8 @@ export function saveAccountBodyWeight(bodyWeightKg: number, username = getCurren
 
   localStorage.setItem(profileKey(username), JSON.stringify({ bodyWeightKg }))
 }
+
+export function syncAccountProfile(account: { username: string; bodyWeightKg?: number | null }): void {
+  localStorage.setItem('trainingapp:authUser', JSON.stringify({ username: account.username }))
+  if (typeof account.bodyWeightKg === 'number') saveAccountBodyWeight(account.bodyWeightKg, account.username)
+}

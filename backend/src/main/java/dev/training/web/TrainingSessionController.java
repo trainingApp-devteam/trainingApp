@@ -177,6 +177,8 @@ public class TrainingSessionController {
                 validatedSet.put("reps", reps);
                 validatedSet.put("durationSeconds", duration);
                 validatedSet.put("weightKg", weight);
+                validatedSet.put("calorieEstimateId", set.get("calorieEstimateId") == null
+                        ? null : ApiValues.positiveLong(set.get("calorieEstimateId"), "calorieEstimateId"));
                 validatedSets.add(validatedSet);
                 setNumber++;
             }
@@ -220,8 +222,18 @@ public class TrainingSessionController {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> sets = (List<Map<String, Object>>) exercise.get("sets");
             for (Map<String, Object> set : sets) {
-                jdbc.update("INSERT INTO set_records (session_exercise_id, set_number, reps, duration_seconds, weight_kg) VALUES (?, ?, ?, ?, ?)",
-                        sessionExerciseId, set.get("setNumber"), set.get("reps"), set.get("durationSeconds"), set.get("weightKg"));
+                Object estimateId = set.get("calorieEstimateId");
+                if (estimateId != null) {
+                    Integer matches = jdbc.queryForObject(
+                            "SELECT COUNT(*) FROM exercise_calorie_estimates c JOIN exercises e ON e.exercise_code = c.exercise_code "
+                                    + "WHERE c.id = ? AND c.user_id = ? AND e.id = ?",
+                            Integer.class, estimateId, ownerId, exerciseId);
+                    if (matches == null || matches == 0) {
+                        throw ApiValues.invalid("calorieEstimateId");
+                    }
+                }
+                jdbc.update("INSERT INTO set_records (session_exercise_id, set_number, reps, duration_seconds, weight_kg, calorie_estimate_id) VALUES (?, ?, ?, ?, ?, ?)",
+                        sessionExerciseId, set.get("setNumber"), set.get("reps"), set.get("durationSeconds"), set.get("weightKg"), estimateId);
             }
         }
     }
@@ -258,13 +270,17 @@ public class TrainingSessionController {
                     exercise.put("displayOrder", row.getInt("display_order"));
                     exercise.put("note", row.getString("note"));
                     exercise.put("sets", jdbc.query(
-                            "SELECT set_number, reps, duration_seconds, weight_kg FROM set_records WHERE session_exercise_id = ? ORDER BY set_number",
+                            "SELECT r.set_number, r.reps, r.duration_seconds, r.weight_kg, r.calorie_estimate_id, c.estimated_calories_kcal "
+                                    + "FROM set_records r LEFT JOIN exercise_calorie_estimates c ON c.id = r.calorie_estimate_id "
+                                    + "WHERE r.session_exercise_id = ? ORDER BY r.set_number",
                             (setRow, setIndex) -> {
                                 Map<String, Object> set = new LinkedHashMap<>();
                                 set.put("setNumber", setRow.getInt("set_number"));
                                 set.put("reps", (Integer) setRow.getObject("reps"));
                                 set.put("durationSeconds", (Integer) setRow.getObject("duration_seconds"));
                                 set.put("weightKg", setRow.getBigDecimal("weight_kg"));
+                                set.put("calorieEstimateId", (Long) setRow.getObject("calorie_estimate_id"));
+                                set.put("estimatedCaloriesKcal", setRow.getBigDecimal("estimated_calories_kcal"));
                                 return set;
                             }, sessionExerciseId));
                     return exercise;

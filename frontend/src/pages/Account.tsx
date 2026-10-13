@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { useNavigate } from 'react-router-dom'
-import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login, logout } from '../api/auth'
-import { getAccountBodyWeight, saveAccountBodyWeight } from '../api/accountProfile'
+import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login, logout, updateBodyWeight } from '../api/auth'
+import { getAccountBodyWeight, syncAccountProfile } from '../api/accountProfile'
 
 export default function Account(): JSX.Element {
   const navigate = useNavigate()
@@ -21,7 +21,7 @@ export default function Account(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    if (current) localStorage.setItem('trainingapp:authUser', JSON.stringify({ username: current.username }))
+    if (current) syncAccountProfile(current)
     else localStorage.removeItem('trainingapp:authUser')
     const savedWeight = current ? getAccountBodyWeight(current.username) : null
     setBodyWeight(savedWeight === null ? '' : String(savedWeight))
@@ -59,7 +59,7 @@ export default function Account(): JSX.Element {
     } finally { setBusy(false) }
   }
 
-  function saveProfile(event: React.FormEvent<HTMLFormElement>) {
+  async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const value = Number(bodyWeight)
     if (!current || bodyWeight === '' || !Number.isFinite(value) || value < 20 || value > 300) {
@@ -68,9 +68,16 @@ export default function Account(): JSX.Element {
       return
     }
 
-    saveAccountBodyWeight(value, current.username)
-    setError(null)
-    setMessage('体重を保存しました')
+    try {
+      const updated = await updateBodyWeight(value)
+      syncAccountProfile(updated)
+      setCurrent(updated)
+      setError(null)
+      setMessage('体重を保存しました')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '体重を保存できませんでした')
+      setMessage(null)
+    }
   }
 
   return (

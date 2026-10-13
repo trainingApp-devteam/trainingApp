@@ -388,6 +388,75 @@ class ApiIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void storesCalorieEstimateOnSetAndRejectsOthersEstimate() throws Exception {
+        MockHttpSession ownerSession = login(owner);
+        MockHttpSession otherSession = login(other);
+        long benchPress = jdbc.queryForObject("SELECT id FROM exercises WHERE exercise_code = 'bench_press'", Long.class);
+        long treadmill = jdbc.queryForObject("SELECT id FROM exercises WHERE exercise_code = 'treadmill'", Long.class);
+
+        MvcResult estimate = mockMvc.perform(post("/api/v1/calorie-estimates")
+                        .session(ownerSession)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"exerciseId\":" + benchPress + ",\"basis\":\"REP\",\"rpe\":8,\"bodyWeightKg\":60,\"reps\":10}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long estimateId = new ObjectMapper().readTree(estimate.getResponse().getContentAsString()).get("estimateId").asLong();
+
+        String session = "{\"trainingDate\":\"2026-10-13\",\"exercises\":[{\"exerciseId\":%d,\"sets\":[{\"reps\":10,\"weightKg\":40,\"calorieEstimateId\":%d}]}]}";
+        mockMvc.perform(post("/api/v1/training-sessions")
+                        .session(ownerSession)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(session.formatted(benchPress, estimateId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.exercises[0].sets[0].calorieEstimateId").value(estimateId))
+                .andExpect(jsonPath("$.exercises[0].sets[0].estimatedCaloriesKcal").value(3.15));
+
+        mockMvc.perform(post("/api/v1/training-sessions")
+                        .session(otherSession)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(session.formatted(benchPress, estimateId)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/training-sessions")
+                        .session(ownerSession)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(session.formatted(treadmill, estimateId)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void storesBodyWeightInAccountProfile() throws Exception {
+        MockHttpSession session = login(owner);
+
+        mockMvc.perform(get("/api/v1/auth/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").exists())
+                .andExpect(jsonPath("$.bodyWeightKg").isEmpty());
+
+        mockMvc.perform(put("/api/v1/auth/me/profile")
+                        .session(session)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"bodyWeightKg\":63.5}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bodyWeightKg").value(63.5));
+
+        mockMvc.perform(get("/api/v1/auth/me").session(session))
+                .andExpect(jsonPath("$.bodyWeightKg").value(63.5));
+
+        mockMvc.perform(put("/api/v1/auth/me/profile")
+                        .session(session)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"bodyWeightKg\":10}"))
+                .andExpect(status().isBadRequest());
+    }
+
     private MockHttpSession login(String username) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .with(csrf())

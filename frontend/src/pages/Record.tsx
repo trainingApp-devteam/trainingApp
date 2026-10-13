@@ -1,7 +1,8 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { Link, useNavigate } from 'react-router-dom'
 import { searchExercises, listExerciseGroups, createExercise } from '../api/exercises'
-import { getAccountBodyWeight } from '../api/accountProfile'
+import { getAccountBodyWeight, syncAccountProfile } from '../api/accountProfile'
+import { getCurrentAccount } from '../api/auth'
 import CreateExerciseModal from '../components/CreateExerciseModal'
 import { createCalorieEstimate, createRecord } from '../api/records'
 import type { SetItem } from '../api/records'
@@ -26,7 +27,7 @@ export default function Record(): JSX.Element {
   const [timeSeconds, setTimeSeconds] = useState<number>(60)
   const [weight, setWeight] = useState<number | ''>('')
   const [rpe, setRpe] = useState<number>(6)
-  const [bodyWeightKg] = useState<number | null>(() => getAccountBodyWeight())
+  const [bodyWeightKg, setBodyWeightKg] = useState<number | null>(() => getAccountBodyWeight())
 
   // session state
   const [inSession, setInSession] = useState(false)
@@ -76,6 +77,13 @@ export default function Record(): JSX.Element {
       })) } }).catch(() => { if (!cancelled) setExercises([]) })
     })
     return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    getCurrentAccount().then((account) => {
+      syncAccountProfile(account)
+      setBodyWeightKg(getAccountBodyWeight(account.username))
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {

@@ -9,6 +9,7 @@ vi.mock('../../api/auth', () => ({
   login: vi.fn(),
   logout: vi.fn(),
   acceptInvitation: vi.fn(),
+  updateBodyWeight: vi.fn(async (bodyWeightKg: number) => ({ id: 1, username: 'test-user', displayName: 'Test User', role: 'USER', bodyWeightKg })),
 }))
 
 describe('Account page', () => {

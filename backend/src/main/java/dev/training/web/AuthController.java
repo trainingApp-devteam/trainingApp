@@ -2,6 +2,8 @@ package dev.training.web;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
@@ -16,6 +18,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -85,7 +88,31 @@ public class AuthController {
         return currentAccount(authentication.getName());
     }
 
+    @PutMapping("/me/profile")
+    Map<String, Object> updateProfile(@RequestBody Map<String, Object> body, Authentication authentication) {
+        BigDecimal bodyWeightKg = ApiValues.decimal(body.get("bodyWeightKg"), "bodyWeightKg", new BigDecimal("20"), new BigDecimal("300"));
+        if (bodyWeightKg == null) {
+            throw ApiValues.invalid("bodyWeightKg");
+        }
+        jdbc.update("UPDATE users SET body_weight_kg = ? WHERE username = ? AND status = 'ACTIVE'",
+                bodyWeightKg, authentication.getName());
+        return currentAccount(authentication.getName());
+    }
+
     private Map<String, Object> currentAccount(String username) {
-        return jdbc.queryForMap("SELECT id, username, display_name AS displayName, role FROM users WHERE username = ? AND status = 'ACTIVE'", username);
+        return jdbc.query(
+                "SELECT id, username, display_name, role, body_weight_kg FROM users WHERE username = ? AND status = 'ACTIVE'",
+                row -> {
+                    if (!row.next()) {
+                        throw ApiValues.notFound();
+                    }
+                    Map<String, Object> account = new LinkedHashMap<>();
+                    account.put("id", row.getLong("id"));
+                    account.put("username", row.getString("username"));
+                    account.put("displayName", row.getString("display_name"));
+                    account.put("role", row.getString("role"));
+                    account.put("bodyWeightKg", row.getBigDecimal("body_weight_kg"));
+                    return account;
+                }, username);
     }
 }

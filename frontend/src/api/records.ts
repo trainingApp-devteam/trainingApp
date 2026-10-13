@@ -30,7 +30,7 @@ type BackendSession = {
     exerciseId: number
     exerciseName: string
     category?: string
-    sets: Array<{ reps: number | null; durationSeconds: number | null; weightKg: number | null }>
+    sets: Array<{ reps: number | null; durationSeconds: number | null; weightKg: number | null; calorieEstimateId?: number | null; estimatedCaloriesKcal?: number | null }>
   }>
 }
 
@@ -45,6 +45,8 @@ function mapSession(session: BackendSession): RecordItem {
     reps: set.reps ?? undefined,
     timeSeconds: set.durationSeconds ?? undefined,
     weight: set.weightKg ?? undefined,
+    calorieEstimateId: set.calorieEstimateId ?? undefined,
+    estimatedCaloriesKcal: set.estimatedCaloriesKcal ?? undefined,
   })))
   return {
     id: String(session.id),
@@ -108,6 +110,7 @@ export async function createRecord(body: Omit<RecordItem, 'id'>): Promise<Record
           reps: set.type === 'reps' ? set.reps : undefined,
           durationSeconds: set.type === 'time' ? set.timeSeconds : undefined,
           weightKg: set.weight,
+          calorieEstimateId: set.calorieEstimateId,
         })),
       })),
     }),

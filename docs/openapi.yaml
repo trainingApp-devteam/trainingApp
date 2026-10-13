@@ -69,6 +69,26 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Account' }
         '401': { $ref: '#/components/responses/Error' }
+  /auth/me/profile:
+    put:
+      tags: [Authentication]
+      summary: Update the current account's body weight (used for calorie estimates)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bodyWeightKg]
+              properties:
+                bodyWeightKg: { type: number, minimum: 20, maximum: 300 }
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/Error' }
   /invitations/accept:
     post:
       tags: [Invitations and administration]
@@ -470,6 +490,7 @@ components:
         username: { type: string }
         displayName: { type: string }
         role: { type: string, enum: [USER, ADMIN] }
+        bodyWeightKg: { type: number, nullable: true }
     InvitationAcceptRequest:
       type: object
       required: [token, username, displayName, password]
@@ -568,6 +589,7 @@ components:
         reps: { type: integer, minimum: 1, nullable: true }
         durationSeconds: { type: integer, minimum: 1, nullable: true }
         weightKg: { type: number, minimum: 0, maximum: 99999.99, nullable: true }
+        calorieEstimateId: { type: integer, format: int64, nullable: true, description: Estimate created by the same user for the same shared exercise. Responses also include estimatedCaloriesKcal. }
       description: Exactly one of reps or durationSeconds must be provided.
     SessionExerciseInput:
       type: object

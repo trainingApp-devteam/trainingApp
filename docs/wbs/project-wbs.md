@@ -87,7 +87,7 @@
 | 6.1 | コンテナ化（Dockerfile multi-stage）           | ×    | -      | ビルド最適化            |
 | 6.2 | レジストリ & デプロイ手順整備                  | ×    | -      | ACR/ECR 連携            |
 | 6.3 | Infra テンプレート作成（Bicep/Terraform）      | ×    | -      | 簡易テンプレート        |
-| 6.4 | GitHub Actions: build/test/deploy ワークフロー | ×    | -      | 自動化パイプライン      |
+| 6.4 | GitHub Actions: build/test/deploy ワークフロー | △    | -      | frontend/backend の build・test は ci.yml で自動化。deploy は未着手      |
 | 6.5 | Secrets/Key 管理手順作成                       | ×    | -      | KeyVault 等             |
 | 6.6 | モニタリング設定                               | ×    | -      | Application Insights 等 |
 
