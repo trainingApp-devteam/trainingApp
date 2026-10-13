@@ -1,91 +1,88 @@
 import React, { useEffect, useState } from "react"
 import { useNavigate } from 'react-router-dom'
-
-type User = { username: string; password?: string }
-
-function loadUsers(): User[] {
-  try {
-    const raw = localStorage.getItem('trainingapp:users')
-    if (!raw) return []
-    return JSON.parse(raw)
-  } catch {
-    return []
-  }
-}
-
-function saveUsers(users: User[]) { localStorage.setItem('trainingapp:users', JSON.stringify(users)) }
-
-function setAuthUser(u: { username: string } | null) {
-  if (u) localStorage.setItem('trainingapp:authUser', JSON.stringify(u))
-  else localStorage.removeItem('trainingapp:authUser')
-}
+import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login, logout } from '../api/auth'
 
 export default function Account(): JSX.Element {
   const navigate = useNavigate()
+  const [mode, setMode] = useState<'login' | 'invitation'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [current, setCurrent] = useState<{username:string}|null>(null)
+  const [displayName, setDisplayName] = useState('')
+  const [invitationToken, setInvitationToken] = useState('')
+  const [current, setCurrent] = useState<AccountInfo | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('trainingapp:authUser')
-      if (raw) setCurrent(JSON.parse(raw))
-    } catch {}
+    getCurrentAccount().then(setCurrent).catch(() => setCurrent(null))
   }, [])
 
-  function register() {
-    if (!username) return alert('ユーザ名を入力してください')
-    const users = loadUsers()
-    users.push({ username, password })
-    saveUsers(users)
-    alert('登録しました')
-    // auto-login after register
-    setAuthUser({ username })
-    setCurrent({ username })
-    navigate('/')
+  async function submitLogin() {
+    setBusy(true); setError(null); setMessage(null)
+    try {
+      setCurrent(await login(username, password))
+      navigate('/')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ログインできませんでした')
+    } finally { setBusy(false) }
   }
 
-  function login() {
-    if (!username) return alert('ユーザ名を入力してください')
-    // per request: accept any username/password — still store authUser
-    const users = loadUsers()
-    const found = users.find(u => u.username === username)
-    setAuthUser({ username })
-    setCurrent({ username })
-    alert('ログインしました')
-    navigate('/')
+  async function submitInvitation() {
+    setBusy(true); setError(null); setMessage(null)
+    try {
+      await acceptInvitation({ token: invitationToken, username, displayName, password })
+      setMessage('申請を受け付けました。管理者の承認後にログインできます。')
+      setPassword('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '登録できませんでした')
+    } finally { setBusy(false) }
   }
 
-  // displayName functionality removed per request
-
-  function logout() {
-    setAuthUser(null)
-    setCurrent(null)
-    navigate('/')
+  async function signOut() {
+    setBusy(true); setError(null)
+    try {
+      await logout()
+      setCurrent(null)
+      navigate('/')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ログアウトできませんでした')
+    } finally { setBusy(false) }
   }
 
   return (
     <div className="container mx-auto px-4 py-10">
       <h2 className="text-2xl font-semibold mb-4">アカウント</h2>
       <div className="p-6 bg-white/5 rounded-lg max-w-md">
+        {error && <div role="alert" className="mb-3 text-red-400">{error}</div>}
+        {message && <div role="status" className="mb-3 text-green-400">{message}</div>}
         {!current && (
           <>
-            <div className="mb-3"><label className="block text-sm">ユーザ名</label>
-              <input value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
-            <div className="mb-3"><label className="block text-sm">パスワード</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
-            <div className="flex gap-2">
-              <button onClick={register} className="px-3 py-2 rounded bg-green-600">登録</button>
-              <button onClick={login} className="px-3 py-2 rounded bg-blue-600">ログイン</button>
+            <div className="mb-4 flex gap-2" role="tablist" aria-label="アカウント操作">
+              <button role="tab" aria-selected={mode === 'login'} onClick={() => setMode('login')} className="px-3 py-2 rounded bg-blue-700">ログイン</button>
+              <button role="tab" aria-selected={mode === 'invitation'} onClick={() => setMode('invitation')} className="px-3 py-2 rounded bg-gray-700">招待で登録</button>
             </div>
+            {mode === 'invitation' && <>
+              <div className="mb-3"><label className="block text-sm">招待コード</label>
+                <input value={invitationToken} onChange={e => setInvitationToken(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
+              <div className="mb-3"><label className="block text-sm">表示名</label>
+                <input value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
+            </>}
+            <div className="mb-3"><label className="block text-sm">ユーザー名</label>
+              <input autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
+            <div className="mb-3"><label className="block text-sm">パスワード</label>
+              <input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
+            <button disabled={busy} onClick={mode === 'login' ? submitLogin : submitInvitation} className="px-3 py-2 rounded bg-green-700 disabled:opacity-50">
+              {busy ? '処理中...' : mode === 'login' ? 'ログイン' : '登録申請'}
+            </button>
           </>
         )}
 
         {current && (
           <>
-            <div className="mb-3">ログイン中: <strong>{current.username}</strong></div>
+            <div className="mb-3">ログイン中: <strong>{current.displayName || current.username}</strong>（{current.role}）</div>
             <div className="flex gap-2">
-              <button onClick={logout} className="px-3 py-2 rounded bg-red-600">ログアウト</button>
+              <button disabled={busy} onClick={signOut} className="px-3 py-2 rounded bg-red-700 disabled:opacity-50">ログアウト</button>
             </div>
           </>
         )}

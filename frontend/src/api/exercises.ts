@@ -1,28 +1,26 @@
+import { apiRequest } from './client'
+
+type BackendExercise = { id: number; name: string; category?: string | null }
 export type Exercise = { id: string; name: string; group?: string }
 
 export async function searchExercises(q = '', category?: string): Promise<Exercise[]> {
-  const url = new URL('/api/exercises', location.origin)
+  const url = new URL('/api/v1/exercises', location.origin)
   if (q) url.searchParams.set('q', q)
   if (category) url.searchParams.set('category', category)
-  const res = await fetch(url.toString())
-  if (!res.ok) throw new Error('Failed to fetch exercises')
-  return res.json()
+  const data = await apiRequest<BackendExercise[]>(`${url.pathname.replace('/api/v1', '')}${url.search}`)
+  return data.map((exercise) => ({ id: String(exercise.id), name: exercise.name, group: exercise.category || undefined }))
 }
 
 export async function listExerciseGroups(): Promise<Array<{ id: string; name: string }>> {
-  const url = new URL('/api/exercise-groups', location.origin)
-  const res = await fetch(url.toString())
-  if (!res.ok) throw new Error('Failed to fetch groups')
-  return res.json()
+  const exercises = await searchExercises()
+  const groups = new Set(exercises.map((exercise) => exercise.group).filter((group): group is string => Boolean(group)))
+  return [...groups].sort().map((group) => ({ id: group, name: group }))
 }
 
 export async function createExercise(name: string, group?: string): Promise<Exercise> {
-  const url = new URL('/api/exercises', location.origin)
-  const res = await fetch(url.toString(), {
+  const exercise = await apiRequest<BackendExercise>('/exercises', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, group }),
+    body: JSON.stringify({ name, category: group }),
   })
-  if (!res.ok) throw new Error('Failed to create exercise')
-  return res.json()
+  return { id: String(exercise.id), name: exercise.name, group: exercise.category || undefined }
 }

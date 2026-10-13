@@ -11,8 +11,7 @@ function renderApp() {
   );
 }
 
-if (import.meta.env.DEV) {
-  // MSW を開発時に起動し、起動完了後にアプリをレンダリングする
+if (import.meta.env.DEV && import.meta.env.VITE_USE_MSW === 'true') {
   import('./mocks/browser').then(({ worker }) => worker.start().then(() => renderApp()));
 } else {
   renderApp();

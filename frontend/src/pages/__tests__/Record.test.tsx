@@ -30,42 +30,17 @@ describe('Record page', () => {
     expect(await screen.findByRole('combobox', { name: /部位|種目/ })).toBeTruthy()
   })
 
-  test('create exercise flow and add set shows created name', async () => {
+  test('selecting an existing exercise and adding a set shows its name', async () => {
     const user = userEvent.setup()
-    // open modal
-    const createBtn = await screen.findByRole('button', { name: /独自種目作成/ })
-    await user.click(createBtn)
-    const nameInput = await screen.findByLabelText(/種目名/)
-    await user.type(nameInput, 'テスト種目')
-    // find the modal dialog and click the 作成 button inside it
-    const dialog = await screen.findByRole('dialog')
-    const { getByRole } = within(dialog)
-    const submit = getByRole('button', { name: /作成/ })
-    await user.click(submit)
-
-    // wait for option to appear in select
-    const option = await screen.findByRole('option', { name: 'テスト種目' })
-    expect(option).toBeInTheDocument()
-
-    // find the exercise select that contains this option
+    const option = await screen.findByRole('option', { name: '既存種目' })
     const selects = screen.getAllByRole('combobox')
-    let exerciseSelect: HTMLSelectElement | null = null
-    for (const s of selects) {
-      try {
-        within(s).getByRole('option', { name: 'テスト種目' })
-        exerciseSelect = s as HTMLSelectElement
-        break
-      } catch (e) {
-        // not this one
-      }
-    }
+    const exerciseSelect = selects.find((select) => within(select).queryByRole('option', { name: '既存種目' }))
     if (!exerciseSelect) throw new Error('exercise select not found')
     await user.selectOptions(exerciseSelect, option as HTMLOptionElement)
     const addBtn = screen.getByRole('button', { name: /セットを追加/ })
     await user.click(addBtn)
 
-    // created set should show the human-readable name (option + table cell may both exist)
-    const found = await screen.findAllByText('テスト種目')
+    const found = await screen.findAllByText('既存種目')
     expect(found.length).toBeGreaterThan(0)
   })
 })

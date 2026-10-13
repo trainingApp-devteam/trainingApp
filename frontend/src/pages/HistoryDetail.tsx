@@ -33,11 +33,11 @@ export default function HistoryDetail(): JSX.Element {
 
       <div className="p-6 bg-white/5 rounded-lg">
         <div className="mb-3">日時: <span className="font-medium">{item.date}</span></div>
-        <div className="mb-3">種目 ID: <span className="font-medium">{item.exerciseId}</span></div>
+        <div className="mb-3">種目: <span className="font-medium">{[...new Set(item.sets.map((set) => set.exerciseName).filter(Boolean))].join('、') || item.exerciseId}</span></div>
         <div className="mb-3">セット:</div>
         <ul className="space-y-2">
           {item.sets.map((s, i) => (
-            <li key={i} className="bg-gray-800/40 p-2 rounded">{renderSet(s)}</li>
+            <li key={i} className="bg-gray-800/40 p-2 rounded">{s.exerciseName ? `${s.exerciseName}: ` : ''}{renderSet(s)}</li>
           ))}
         </ul>
       </div>

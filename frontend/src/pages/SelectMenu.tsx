@@ -1,25 +1,21 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { listRoutines, Routine } from '../api/routines'
 
 export default function SelectMenu(): JSX.Element {
-  const [savedMenus, setSavedMenus] = useState<Array<{id:string;name:string;exercises:any[]}>>([])
+  const [savedMenus, setSavedMenus] = useState<Routine[]>([])
+  const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('trainingapp:menus')
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) setSavedMenus(parsed)
-    } catch {
-      // ignore
-    }
+    listRoutines().then(setSavedMenus).catch((e) => setError(e instanceof Error ? e.message : 'メニューを取得できませんでした'))
   }, [])
 
   return (
     <div className="container mx-auto px-4 py-10">
       <div className="bg-white/5 p-6 rounded-2xl shadow-lg">
         <h2 className="text-xl font-semibold mb-4">保存済メニューを選択</h2>
+        {error && <div role="alert" className="text-red-400">{error}</div>}
         {savedMenus.length === 0 && (
           <div className="p-4 bg-white/3 rounded">保存されたメニューがありません。</div>
         )}

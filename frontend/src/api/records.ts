@@ -1,3 +1,5 @@
+import { apiRequest } from './client'
+
 export type SetItem = {
   exerciseId?: string
   exerciseName?: string
@@ -15,29 +17,71 @@ export type RecordItem = {
   sets: SetItem[]
 }
 
+type BackendSession = {
+  id: number
+  trainingDate: string
+  exercises: Array<{
+    exerciseId: number
+    exerciseName: string
+    category?: string
+    sets: Array<{ reps: number | null; durationSeconds: number | null; weightKg: number | null }>
+  }>
+}
+
+type SessionPage = { content: BackendSession[] }
+
+function mapSession(session: BackendSession): RecordItem {
+  const sets = session.exercises.flatMap((exercise) => exercise.sets.map((set) => ({
+    exerciseId: String(exercise.exerciseId),
+    exerciseName: exercise.exerciseName,
+    exerciseGroup: exercise.category,
+    type: set.reps === null ? 'time' as const : 'reps' as const,
+    reps: set.reps ?? undefined,
+    timeSeconds: set.durationSeconds ?? undefined,
+    weight: set.weightKg ?? undefined,
+  })))
+  return {
+    id: String(session.id),
+    date: session.trainingDate,
+    exerciseId: sets[0]?.exerciseId || '',
+    sets,
+  }
+}
+
 export async function listRecords(): Promise<RecordItem[]> {
-  const res = await fetch('/api/records')
-  if (!res.ok) throw new Error('Failed to fetch records')
-  return res.json()
+  const page = await apiRequest<SessionPage>('/training-sessions?page=0&size=100')
+  return page.content.map(mapSession)
 }
 
 export async function getRecord(id: string): Promise<RecordItem> {
-  const res = await fetch(`/api/records/${id}`)
-  if (!res.ok) throw new Error('Not found')
-  return res.json()
+  return mapSession(await apiRequest<BackendSession>(`/training-sessions/${encodeURIComponent(id)}`))
 }
 
 export async function createRecord(body: Omit<RecordItem, 'id'>): Promise<RecordItem> {
-  const res = await fetch('/api/records', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  const grouped = new Map<string, SetItem[]>()
+  body.sets.forEach((set) => {
+    const exerciseId = set.exerciseId || body.exerciseId
+    if (!exerciseId) throw new Error('種目を選択してください')
+    grouped.set(exerciseId, [...(grouped.get(exerciseId) || []), set])
   })
-  if (!res.ok) throw new Error('Failed to create')
-  return res.json()
+  const session = await apiRequest<BackendSession>('/training-sessions', {
+    method: 'POST',
+    body: JSON.stringify({
+      trainingDate: body.date,
+      exercises: [...grouped.entries()].map(([exerciseId, sets], index) => ({
+        exerciseId: Number(exerciseId),
+        displayOrder: index + 1,
+        sets: sets.map((set) => ({
+          reps: set.type === 'reps' ? set.reps : undefined,
+          durationSeconds: set.type === 'time' ? set.timeSeconds : undefined,
+          weightKg: set.weight,
+        })),
+      })),
+    }),
+  })
+  return mapSession(session)
 }
 
 export async function deleteRecord(id: string): Promise<void> {
-  const res = await fetch(`/api/records/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error('Failed to delete')
+  await apiRequest<void>(`/training-sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }

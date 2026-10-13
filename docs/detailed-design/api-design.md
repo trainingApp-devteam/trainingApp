@@ -41,15 +41,16 @@
 | --- | --- | --- | --- |
 | `POST` | `/auth/login` | 公開 | ユーザー名・パスワードでログイン |
 | `POST` | `/auth/logout` | ログイン必須 | セッション無効化 |
+| `POST` | `/auth/refresh` | ログイン必須 | セッションID更新 |
 | `GET` | `/auth/me` | ログイン必須 | 自分のアカウント情報 |
-| `GET` | `/auth/csrf` | 公開 | CSRFトークン取得（実装方式により省略可） |
+| `GET` | `/auth/csrf` | 公開 | CSRFトークン取得 |
 | `POST` | `/invitations/accept` | 有効な招待トークン | アカウント申請。状態は承認待ち |
 | `POST` | `/admin/invitations` | Admin | 招待発行 |
 | `GET` | `/admin/users/pending` | Admin | 承認待ち一覧 |
 | `POST` | `/admin/users/{id}/activate` | Admin | アカウント承認・有効化 |
 | `POST` | `/admin/users/{id}/reject` | Admin | 申請却下 |
 | `POST` | `/admin/invitations/{id}/revoke` | Admin | 未使用招待の失効 |
-| `GET`, `POST` | `/exercises` | ログイン | 種目一覧、独自種目作成 |
+| `GET`, `POST` | `/exercises` | ログイン | 種目一覧（名称/カテゴリ検索）、独自種目作成 |
 | `GET`, `PUT`, `DELETE` | `/exercises/{id}` | ログイン、所有者/標準種目ルール | 詳細、独自種目変更・削除 |
 | `GET`, `POST` | `/routines` | ログイン、本人データ | メニュー一覧・作成 |
 | `GET`, `PUT`, `DELETE` | `/routines/{id}` | ログイン、本人データ | メニュー詳細・更新・削除 |
@@ -126,6 +127,20 @@
 `GET /training-sessions`は`from`, `to`, `exerciseId`, `page`, `size`を任意指定する。結果は実施日降順、同日は作成日時降順。`PUT`は対象記録の全体更新とし、未指定項目の扱いを部分更新と混同しない。部分更新が必要になった場合は`PATCH`の契約を別途定義する。
 
 他ユーザーのIDを指定した取得・更新・削除は`404 NOT_FOUND`相当とし、存在有無を区別できない応答にする。
+
+### 6.3 ルーティン
+
+`GET /routines`は本人のルーティン一覧を返す。`POST`/`PUT`では`exerciseIds`の順序に対応する`exerciseTargets`を任意指定し、種目ごとの回数または時間と負荷を保存する。目標値を省略した既存クライアント要求は8回として扱う。
+
+```json
+{
+  "name": "有酸素メニュー",
+  "exerciseIds": [1],
+  "exerciseTargets": [
+    { "exerciseId": 1, "type": "time", "durationSeconds": 45, "weightKg": 2.5 }
+  ]
+}
+```
 
 ## 7. 身体測定API
 

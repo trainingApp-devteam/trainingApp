@@ -4,6 +4,7 @@ import { searchExercises, listExerciseGroups, createExercise } from '../api/exer
 import CreateExerciseModal from '../components/CreateExerciseModal'
 import { createRecord } from '../api/records'
 import type { SetItem } from '../api/records'
+import { listRoutines, Routine } from '../api/routines'
 // Spotify integration removed — restored original Record page
 // ExerciseSelect modal removed
 
@@ -34,7 +35,7 @@ export default function Record(): JSX.Element {
   const [group, setGroup] = useState<string>('')
   
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [savedMenus, setSavedMenus] = useState<Array<{id:string;name:string;exercises:any[]}>>([])
+  const [savedMenus, setSavedMenus] = useState<Routine[]>([])
   const [selectedMenuId, setSelectedMenuId] = useState('')
 
 
@@ -75,17 +76,10 @@ export default function Record(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('trainingapp:menus')
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        setSavedMenus(parsed)
-        if (parsed.length) setSelectedMenuId(parsed[0].id)
-      }
-    } catch {
-      // ignore
-    }
+    listRoutines().then((routines) => {
+      setSavedMenus(routines)
+      if (routines.length) setSelectedMenuId(routines[0].id)
+    }).catch(() => setSavedMenus([]))
   }, [])
 
   // read possible menuId from query to auto-apply
@@ -94,14 +88,11 @@ export default function Record(): JSX.Element {
       const qs = new URLSearchParams(window.location.search)
       const menuId = qs.get('menuId')
       if (!menuId) return
-      const raw = localStorage.getItem('trainingapp:menus')
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (!Array.isArray(parsed)) return
-      const menu = parsed.find((m:any) => String(m.id) === String(menuId))
+      listRoutines().then((routines) => {
+      const menu = routines.find((item) => item.id === menuId)
       if (!menu) return
-      // convert exercises to SetItem and setPlanSets
-      const converted: SetItem[] = menu.exercises.map((me:any) => {
+      setSavedMenus(routines)
+      const converted: SetItem[] = menu.exercises.map((me) => {
         const s: any = { type: me.type }
         s.exerciseId = me.exerciseId
         s.exerciseName = me.exerciseName
@@ -121,6 +112,7 @@ export default function Record(): JSX.Element {
       qs.delete('menuId')
       const newUrl = window.location.pathname + (qs.toString() ? `?${qs.toString()}` : '')
       window.history.replaceState({}, '', newUrl)
+      }).catch(() => setError('保存メニューを取得できませんでした'))
     } catch {
       // ignore
     }

@@ -5,6 +5,9 @@ import Home from '../Home'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom/vitest';
 
+vi.mock('../../api/records', () => ({ listRecords: vi.fn(async () => []) }))
+vi.mock('../../api/bodyMeasurements', () => ({ listBodyMeasurements: vi.fn(async () => []) }))
+
 describe('Home page', () => {
   beforeEach(() => {
     render(
@@ -45,8 +48,8 @@ describe('Home page', () => {
 
   test('quick action links exist and point to correct routes', () => {
     const recordLink = screen.getByText('今すぐ記録').closest('a')
-    const menuLink = screen.getByText('メニューから開始').closest('a')
-    expect(recordLink).toHaveAttribute('href', '/record')
+    const menuLink = screen.getByText('メニューを作成').closest('a')
+    expect(recordLink).toHaveAttribute('href', '/record/select')
     expect(menuLink).toHaveAttribute('href', '/menu')
   })
 

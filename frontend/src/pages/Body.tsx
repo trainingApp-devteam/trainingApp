@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from "react"
+import { BodyMeasurement, createBodyMeasurement, deleteBodyMeasurement, listBodyMeasurements, MeasurementType } from '../api/bodyMeasurements'
 
-type Measurement = { id: string; date: string; height?: number; weight?: number; bodyFat?: number }
+type Measurement = { id: string; ids: string[]; date: string; height?: number; weight?: number; bodyFat?: number }
 
-function loadMeasurements(): Measurement[] {
-  try {
-    const raw = localStorage.getItem('trainingapp:bodyMeasurements')
-    if (!raw) return []
-    return JSON.parse(raw)
-  } catch { return [] }
+function groupMeasurements(values: BodyMeasurement[]): Measurement[] {
+  const groups = new Map<string, Measurement>()
+  values.forEach((item) => {
+    const group = groups.get(item.date) || { id: item.date, ids: [], date: item.date }
+    group.ids.push(item.id)
+    if (item.type === 'height_cm' && group.height === undefined) group.height = item.value
+    if (item.type === 'weight_kg' && group.weight === undefined) group.weight = item.value
+    if (item.type === 'body_fat_pct' && group.bodyFat === undefined) group.bodyFat = item.value
+    groups.set(item.date, group)
+  })
+  return [...groups.values()].sort((a, b) => b.date.localeCompare(a.date))
 }
-
-function saveMeasurements(ms: Measurement[]) { localStorage.setItem('trainingapp:bodyMeasurements', JSON.stringify(ms)) }
 
 export default function Body(): JSX.Element {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0,10))
@@ -18,8 +22,17 @@ export default function Body(): JSX.Element {
   const [weight, setWeight] = useState<number|''>('')
   const [bodyFat, setBodyFat] = useState<number|''>('')
   const [items, setItems] = useState<Measurement[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => { setItems(loadMeasurements()) }, [])
+  async function refresh() {
+    setLoading(true)
+    try { setItems(groupMeasurements(await listBodyMeasurements())); setError(null) }
+    catch (e) { setError(e instanceof Error ? e.message : '測定データを取得できませんでした') }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { refresh() }, [])
 
   function validate(): string|null {
     if (!date) return '日付を入力してください'
@@ -29,21 +42,34 @@ export default function Body(): JSX.Element {
     return null
   }
 
-  function add() {
+  async function add() {
     const err = validate()
     if (err) return alert(err)
-    const m: Measurement = { id: String(Date.now()), date, height: height === '' ? undefined : Number(height), weight: weight === '' ? undefined : Number(weight), bodyFat: bodyFat === '' ? undefined : Number(bodyFat) }
-    const next = [m, ...items]
-    setItems(next)
-    saveMeasurements(next)
-    alert('保存しました')
+    const values: Array<[MeasurementType, number]> = []
+    if (height !== '') values.push(['height_cm', Number(height)])
+    if (weight !== '') values.push(['weight_kg', Number(weight)])
+    if (bodyFat !== '') values.push(['body_fat_pct', Number(bodyFat)])
+    if (!values.length) return setError('測定値を1つ以上入力してください')
+    setError(null)
+    try {
+      for (const [type, value] of values) await createBodyMeasurement(date, type, value)
+      await refresh()
+      alert('保存しました')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存できませんでした')
+      await refresh()
+    }
   }
 
-  function remove(id: string) {
-    if (!confirm('削除しますか？')) return
-    const next = items.filter(i => i.id !== id)
-    setItems(next)
-    saveMeasurements(next)
+  async function remove(item: Measurement) {
+    if (!confirm('この日の測定値をすべて削除しますか？')) return
+    try {
+      await Promise.all(item.ids.map(deleteBodyMeasurement))
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '削除できませんでした')
+      await refresh()
+    }
   }
 
   return (
@@ -65,18 +91,20 @@ export default function Body(): JSX.Element {
         <div className="flex gap-2">
           <button onClick={add} className="px-3 py-2 rounded bg-green-600">保存</button>
         </div>
+        {error && <div role="alert" className="mt-3 text-red-400">{error}</div>}
 
         <div className="mt-6">
           <h3 className="font-medium mb-2">履歴</h3>
-          {items.length === 0 && <div>データがありません</div>}
+          {loading && <div>読み込み中...</div>}
+          {!loading && items.length === 0 && <div>データがありません</div>}
           <ul className="space-y-2">
             {items.map(i => (
               <li key={i.id} className="flex items-center justify-between bg-gray-800/40 p-2 rounded">
                 <div>
                   <div className="font-medium">{i.date}</div>
-                  <div className="text-sm text-gray-300">{i.height ? `${i.height} cm` : '-'} / {i.weight ? `${i.weight} kg` : '-'} / {i.bodyFat ? `${i.bodyFat}%` : '-'}</div>
+                  <div className="text-sm text-gray-300">{i.height !== undefined ? `${i.height} cm` : '-'} / {i.weight !== undefined ? `${i.weight} kg` : '-'} / {i.bodyFat !== undefined ? `${i.bodyFat}%` : '-'}</div>
                 </div>
-                <button onClick={() => remove(i.id)} className="px-2 py-1 rounded bg-red-600">削除</button>
+                <button onClick={() => remove(i)} className="px-2 py-1 rounded bg-red-700">削除</button>
               </li>
             ))}
           </ul>

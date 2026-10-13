@@ -2,151 +2,614 @@ openapi: 3.0.3
 info:
   title: TrainingApp API
   version: '1.0.0'
-  description: API spec for minimal TrainingApp backend used by frontend mocks
-
+  description: >-
+    TrainingApp REST API. User-owned resources are scoped to the authenticated session.
+    Call GET /auth/csrf first and send the XSRF-TOKEN cookie value in the X-XSRF-TOKEN header
+    for every state-changing request, including login.
 servers:
-  - url: /api
-
+  - url: /api/v1
+tags:
+  - name: Authentication
+  - name: Invitations and administration
+  - name: Exercises
+  - name: Training sessions
+  - name: Body measurements
+  - name: Routines
 paths:
-  /records:
+  /auth/csrf:
     get:
-      summary: List records
+      tags: [Authentication]
+      summary: Initialize the CSRF cookie
+      security: []
       responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Record'
+        '204': { description: CSRF cookie issued }
+  /auth/login:
     post:
-      summary: Create record
+      tags: [Authentication]
+      summary: Create an authenticated session
+      security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/RecordCreate'
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Invalidate the current session
+      responses:
+        '204': { description: Session invalidated }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Rotate the current session identifier
+      responses:
+        '200':
+          description: Session rotated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get the current account
+      responses:
+        '200':
+          description: Current account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Error' }
+  /invitations/accept:
+    post:
+      tags: [Invitations and administration]
+      summary: Accept a single-use invitation and submit an account for approval
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitationAcceptRequest' }
+      responses:
+        '201':
+          description: Account created in pending state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitationAccepted' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /admin/invitations:
+    post:
+      tags: [Invitations and administration]
+      summary: Issue a single-use invitation (Admin)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitationCreateRequest' }
+      responses:
+        '201':
+          description: Token is returned once
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invitation' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/users/pending:
+    get:
+      tags: [Invitations and administration]
+      summary: List accounts awaiting approval (Admin)
+      responses:
+        '200':
+          description: Pending accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PendingUser' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/users/{id}/activate:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Invitations and administration]
+      summary: Approve a pending account (Admin)
+      responses:
+        '200':
+          description: Account activated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserStatus' }
+        '404': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/users/{id}/reject:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Invitations and administration]
+      summary: Reject a pending account (Admin)
+      responses:
+        '200':
+          description: Account rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserStatus' }
+        '404': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/invitations/{id}/revoke:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Invitations and administration]
+      summary: Revoke an unused invitation (Admin)
+      responses:
+        '204': { description: Invitation revoked }
+        '404': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /exercises:
+    get:
+      tags: [Exercises]
+      summary: Search shared and owned exercises
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: category, in: query, schema: { type: string, maxLength: 50 } }
+      responses:
+        '200':
+          description: Exercises
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Exercise' }
+    post:
+      tags: [Exercises]
+      summary: Create a personal exercise
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExerciseInput' }
       responses:
         '201':
           description: Created
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Record'
-
-  /records/{id}:
+              schema: { $ref: '#/components/schemas/Exercise' }
+        '400': { $ref: '#/components/responses/Error' }
+  /exercises/{id}:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
+      - { $ref: '#/components/parameters/Id' }
     get:
-      summary: Get record
+      tags: [Exercises]
+      summary: Get a shared or owned exercise
       responses:
         '200':
-          description: OK
+          description: Exercise
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Record'
-        '404':
-          description: Not found
+              schema: { $ref: '#/components/schemas/Exercise' }
+        '404': { $ref: '#/components/responses/Error' }
     put:
-      summary: Update record
+      tags: [Exercises]
+      summary: Update an owned exercise
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/RecordCreate'
+            schema: { $ref: '#/components/schemas/ExerciseInput' }
       responses:
         '200':
           description: Updated
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Record'
+              schema: { $ref: '#/components/schemas/Exercise' }
+        '404': { $ref: '#/components/responses/Error' }
     delete:
-      summary: Delete record
+      tags: [Exercises]
+      summary: Delete an owned exercise not used by a record or routine
       responses:
-        '204':
-          description: Deleted
-
-  /exercises:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /training-sessions:
     get:
-      summary: Search exercises
+      tags: [Training sessions]
+      summary: List the current user's sessions
       parameters:
-        - name: q
-          in: query
-          schema:
-            type: string
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: exerciseId, in: query, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
       responses:
         '200':
-          description: OK
+          description: Page of sessions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionPage' }
+    post:
+      tags: [Training sessions]
+      summary: Create a training session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SessionInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrainingSession' }
+        '400': { $ref: '#/components/responses/Error' }
+  /training-sessions/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Training sessions]
+      summary: Get a session owned by the current user
+      responses:
+        '200':
+          description: Session
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrainingSession' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [Training sessions]
+      summary: Replace a session and its exercise sets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SessionInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrainingSession' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Training sessions]
+      summary: Delete a session owned by the current user
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Error' }
+  /body-measurements:
+    get:
+      tags: [Body measurements]
+      summary: List the current user's measurements
+      parameters:
+        - { name: measurementTypeCode, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200':
+          description: Page of measurements
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeasurementPage' }
+    post:
+      tags: [Body measurements]
+      summary: Add a body measurement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeasurementInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BodyMeasurement' }
+        '400': { $ref: '#/components/responses/Error' }
+  /body-measurements/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    put:
+      tags: [Body measurements]
+      summary: Update a measurement owned by the current user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeasurementInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BodyMeasurement' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Body measurements]
+      summary: Delete a measurement owned by the current user
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Error' }
+  /routines:
+    get:
+      tags: [Routines]
+      summary: List the current user's routines
+      responses:
+        '200':
+          description: Routines
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/Exercise'
-
+                items: { $ref: '#/components/schemas/Routine' }
+    post:
+      tags: [Routines]
+      summary: Create a routine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoutineInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Routine' }
+  /routines/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Routines]
+      summary: Get a routine owned by the current user
+      responses:
+        '200':
+          description: Routine
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Routine' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [Routines]
+      summary: Replace a routine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoutineInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Routine' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Routines]
+      summary: Delete a routine
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Error' }
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    Error:
+      description: API error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
   schemas:
-    Record:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 128, format: password }
+    Account:
+      type: object
+      required: [id, username, displayName, role]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        displayName: { type: string }
+        role: { type: string, enum: [USER, ADMIN] }
+    InvitationAcceptRequest:
+      type: object
+      required: [token, username, displayName, password]
+      properties:
+        token: { type: string, maxLength: 128 }
+        username: { type: string, minLength: 3, maxLength: 64 }
+        displayName: { type: string, minLength: 1, maxLength: 100 }
+        password: { type: string, minLength: 12, maxLength: 128, format: password }
+    InvitationAccepted:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [PENDING_APPROVAL] }
+    InvitationCreateRequest:
       type: object
       properties:
-        id:
-          type: string
-        date:
-          type: string
-          format: date
-        exerciseId:
-          type: string
-        sets:
-          type: array
-          items:
-            $ref: '#/components/schemas/Set'
-      required: [id, date]
-
-    RecordCreate:
+        expiresInDays: { type: integer, minimum: 1, maximum: 30, default: 7 }
+    Invitation:
       type: object
+      required: [id, token, expiresAt]
       properties:
-        date:
-          type: string
-          format: date
-        exerciseId:
-          type: string
-        sets:
-          type: array
-          items:
-            $ref: '#/components/schemas/Set'
-      required: [date, exerciseId]
-
-    Set:
+        id: { type: integer, format: int64 }
+        token: { type: string, description: Returned only when created. }
+        expiresAt: { type: string, format: date-time }
+    PendingUser:
       type: object
+      required: [id, username, displayName, createdAt]
       properties:
-        type:
-          type: string
-          description: "'reps' or 'time'"
-          enum: ['reps','time']
-        reps:
-          type: integer
-          description: 回数（`type`が `reps` のとき使用）
-        timeSeconds:
-          type: integer
-          description: 秒数（`type`が `time` のとき使用）
-        weight:
-          type: number
-          description: 任意の負荷（kg）
-
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        displayName: { type: string }
+        createdAt: { type: string, format: date-time }
+    UserStatus:
+      type: object
+      required: [id, username, displayName, status]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        displayName: { type: string }
+        status: { type: string, enum: [ACTIVE, REJECTED] }
+    ExerciseInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        category: { type: string, maxLength: 50, nullable: true }
+        description: { type: string, maxLength: 500, nullable: true }
     Exercise:
+      allOf:
+        - { $ref: '#/components/schemas/ExerciseInput' }
+        - type: object
+          required: [id, shared]
+          properties:
+            id: { type: integer, format: int64 }
+            shared: { type: boolean }
+    SetInput:
       type: object
       properties:
-        id:
-          type: string
-        name:
-          type: string
-      required: [id, name]
+        setNumber: { type: integer, minimum: 1 }
+        reps: { type: integer, minimum: 1, nullable: true }
+        durationSeconds: { type: integer, minimum: 1, nullable: true }
+        weightKg: { type: number, minimum: 0, maximum: 99999.99, nullable: true }
+      description: Exactly one of reps or durationSeconds must be provided.
+    SessionExerciseInput:
+      type: object
+      required: [exerciseId, sets]
+      properties:
+        exerciseId: { type: integer, format: int64, minimum: 1 }
+        displayOrder: { type: integer, minimum: 1 }
+        note: { type: string, maxLength: 500, nullable: true }
+        sets:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/SetInput' }
+    SessionInput:
+      type: object
+      required: [trainingDate, exercises]
+      properties:
+        trainingDate: { type: string, format: date }
+        note: { type: string, maxLength: 1000, nullable: true }
+        exercises:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/SessionExerciseInput' }
+    TrainingSession:
+      allOf:
+        - { $ref: '#/components/schemas/SessionInput' }
+        - type: object
+          required: [id, createdAt, updatedAt]
+          properties:
+            id: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    SessionPage:
+      type: object
+      properties:
+        content: { type: array, items: { $ref: '#/components/schemas/TrainingSession' } }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    MeasurementInput:
+      type: object
+      required: [measurementTypeCode, measuredAt, value]
+      properties:
+        measurementTypeCode: { type: string, maxLength: 40 }
+        measuredAt: { type: string, format: date-time }
+        value: { type: number, minimum: 0 }
+    BodyMeasurement:
+      allOf:
+        - { $ref: '#/components/schemas/MeasurementInput' }
+        - type: object
+          required: [id, name, unit]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+            unit: { type: string }
+    MeasurementPage:
+      type: object
+      properties:
+        content: { type: array, items: { $ref: '#/components/schemas/BodyMeasurement' } }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    RoutineInput:
+      type: object
+      required: [name, exerciseIds]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true }
+        exerciseIds:
+          type: array
+          minItems: 1
+          items: { type: integer, format: int64, minimum: 1 }
+        exerciseTargets:
+          type: array
+          description: Optional ordered targets matching exerciseIds; omitted targets default to 8 reps.
+          items: { $ref: '#/components/schemas/RoutineExerciseTarget' }
+    RoutineExerciseTarget:
+      type: object
+      required: [exerciseId, type]
+      properties:
+        exerciseId: { type: integer, format: int64, minimum: 1 }
+        exerciseName: { type: string }
+        type: { type: string, enum: [reps, time] }
+        reps: { type: integer, minimum: 1, nullable: true }
+        durationSeconds: { type: integer, minimum: 1, nullable: true }
+        weightKg: { type: number, minimum: 0, maximum: 99999.99, nullable: true }
+    Routine:
+      allOf:
+        - { $ref: '#/components/schemas/RoutineInput' }
+        - type: object
+          required: [id, exercises]
+          properties:
+            id: { type: integer, format: int64 }
+            exercises: { type: array, items: { $ref: '#/components/schemas/Exercise' } }
+            exerciseTargets: { type: array, items: { $ref: '#/components/schemas/RoutineExerciseTarget' } }
+    ApiError:
+      type: object
+      required: [code, message, details, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              reason: { type: string }
+        requestId: { type: string, format: uuid }
+security:
+  - sessionCookie: []

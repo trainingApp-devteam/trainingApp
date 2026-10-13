@@ -1,42 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { searchExercises, listExerciseGroups } from '../api/exercises'
+import { deleteRoutine, listRoutines, Routine, RoutineExercise, saveRoutine } from '../api/routines'
 
-type MenuExercise = { exerciseId: string; exerciseName?: string; type: 'reps'|'time'; reps?: number; timeSeconds?: number; weight?: number }
-type MenuItem = { id: string; name: string; exercises: MenuExercise[] }
-
-const STORAGE_KEY = 'trainingapp:menus'
-
-function loadMenus(): MenuItem[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.map((p: any) => {
-      if (!p) return p
-      const exs = p.exercises
-      if (!exs) return { ...p, exercises: [] }
-      if (Array.isArray(exs)) {
-        if (exs.length === 0) return { ...p, exercises: [] }
-        if (typeof exs[0] === 'string') {
-          return { ...p, exercises: exs.map((s:string)=>({ exerciseId: s, type: 'reps', reps: 8 })) }
-        }
-        return { ...p, exercises: exs }
-      }
-      if (typeof exs === 'string') {
-        const arr = exs.split(',').map((s:string)=>s.trim()).filter(Boolean)
-        return { ...p, exercises: arr.map((s:string)=>({ exerciseId: s, type: 'reps', reps: 8 })) }
-      }
-      return { ...p, exercises: [] }
-    })
-  } catch {
-    return []
-  }
-}
-
-function saveMenus(ms: MenuItem[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ms))
-}
+type MenuExercise = RoutineExercise
+type MenuItem = Routine
 
 export default function Menu(): JSX.Element {
   const [items, setItems] = useState<MenuItem[]>([])
@@ -52,8 +19,11 @@ export default function Menu(): JSX.Element {
   const [group, setGroup] = useState('')
   const [candidates, setCandidates] = useState<Array<{id:string;name:string}>>([])
   const [selectedExercise, setSelectedExercise] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => { setItems(loadMenus()) }, [])
+  useEffect(() => {
+    listRoutines().then(setItems).catch((e) => setError(e instanceof Error ? e.message : 'メニューを取得できませんでした'))
+  }, [])
 
   useEffect(() => {
     listExerciseGroups().then((gs) => {
@@ -87,31 +57,34 @@ export default function Menu(): JSX.Element {
     })
   }
 
-  function handleSave() {
-    if (!name.trim()) return alert('名前を入力してください')
-    const exs = exercises
-    if (editing) {
-      const updated = items.map(i => i.id === editing.id ? { ...i, name: name.trim(), exercises: exs } : i)
-      setItems(updated); saveMenus(updated)
-    } else {
-      const id = `m_${Date.now()}`
-      const next = [{ id, name: name.trim(), exercises: exs }, ...items]
-      setItems(next); saveMenus(next)
+  async function handleSave() {
+    if (!name.trim()) return setError('名前を入力してください')
+    if (!exercises.length) return setError('種目を1つ以上追加してください')
+    try {
+      const saved = await saveRoutine({ name: name.trim(), exercises }, editing?.id)
+      setItems((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current])
+      setEditing(null); setName(''); setExercises([]); setIsCreating(false); setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存できませんでした')
     }
-    setEditing(null); setName(''); setExercises([])
-    setIsCreating(false)
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm('メニューを削除しますか？')) return
-    const next = items.filter(i => i.id !== id)
-    setItems(next); saveMenus(next)
+    try {
+      await deleteRoutine(id)
+      setItems((current) => current.filter((item) => item.id !== id))
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '削除できませんでした')
+    }
   }
 
   return (
     <div className="container mx-auto px-4 py-10">
       <h2 className="text-2xl font-semibold mb-4">メニュー管理</h2>
       <div className="p-6 bg-white/5 rounded-lg">
+        {error && <div role="alert" className="mb-3 text-red-400">{error}</div>}
             <div className="mb-4 flex items-center gap-2">
           <button onClick={startCreate} className="px-3 py-1 rounded bg-blue-600">新規作成</button>
         </div>
