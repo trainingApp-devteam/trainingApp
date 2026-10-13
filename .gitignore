@@ -60,3 +60,7 @@ backend/build/
 
 # Allow local overrides
 !/.env.example
+
+# Playwright
+playwright-report/
+test-results/

@@ -99,17 +99,23 @@ export default function Record(): JSX.Element {
       const qs = new URLSearchParams(window.location.search)
       const menuId = qs.get('menuId')
       if (!menuId) return
-      listRoutines().then((routines) => {
+      Promise.all([listRoutines(), searchExercises().catch(() => [] as Exercise[])]).then(([routines, catalog]) => {
       const menu = routines.find((item) => item.id === menuId)
       if (!menu) return
       setSavedMenus(routines)
+      const accountWeight = getAccountBodyWeight()
       const converted: SetItem[] = menu.exercises.map((me) => {
+        const chosen = catalog.find((exercise) => exercise.id === me.exerciseId)
         const s: any = { type: me.type }
         s.exerciseId = me.exerciseId
         s.exerciseName = me.exerciseName
+        s.exerciseGroup = chosen?.group
         if (me.type === 'reps') s.reps = me.reps
         else s.timeSeconds = me.timeSeconds
         if (me.weight !== undefined) s.weight = me.weight
+        s.rpe = 6
+        s.calorieEnabled = chosen?.isBuiltin === true && chosen.calorieEnabled === true
+        if (accountWeight !== null) s.bodyWeightKg = accountWeight
         return s as SetItem
       })
       setPlanSets(converted)
