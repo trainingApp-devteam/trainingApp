@@ -131,11 +131,11 @@
 | ID | 作業 | 状態 | 完了日 | 備考 |
 | --: | --- | --- | --- | --- |
 | 11.1 | 設計書へのカロリー推定仕様の反映 | 〇 | 2026/10/13 | MET式、RPE帯、係数seed、API、画面、テスト観点を詳細設計へ追記 |
-| 11.2 | 競合解消と実Backendへの統合 | 〇 | 2026/10/13 | 別系統だったカロリーAPI/Maven/重複Flywayを dev.training + Gradle へ統合し、競合マーカーを除去 |
-| 11.3 | 推定API・係数マスタ | 〇 | 2026/10/13 | POST /calorie-estimates、GET /exercises/{id}/calorie-rates、V4で標準種目コードと係数を登録。標準種目以外は422 |
-| 11.4 | 推定結果の記録保存 | 〇 | 2026/10/13 | V5で set_records.calorie_estimate_id を追加。本人・同一種目の推定のみ紐付け可 |
-| 11.5 | 体重のアカウント保存 | 〇 | 2026/10/13 | V6で users.body_weight_kg、PUT /auth/me/profile。ブラウザにはキャッシュとして保持 |
+| 11.2 | 競合解消と実Backendへの統合 | 〇 | 2026/10/13 | 別系統だったカロリーAPI/Maven/重複Flywayを `dev.training` + Gradle へ統合し、競合マーカーを除去 |
+| 11.3 | 推定API・係数マスタ | 〇 | 2026/10/13 | `POST /calorie-estimates`、`GET /exercises/{id}/calorie-rates`、V4で標準種目コードと係数を登録。標準種目以外は422 |
+| 11.4 | 推定結果の記録保存 | 〇 | 2026/10/13 | V5で `set_records.calorie_estimate_id` を追加。本人・同一種目の推定のみ紐付け可 |
+| 11.5 | 体重のアカウント保存 | 〇 | 2026/10/13 | V6で `users.body_weight_kg`、`PUT /auth/me/profile`。ブラウザにはキャッシュとして保持 |
 | 11.6 | 画面表示（Record/履歴/履歴詳細） | 〇 | 2026/10/13 | セット別・合計の推定kcalを表示。未計算は空欄/対象外 |
-| 11.7 | CIにバックエンドテスト追加・型チェック修正 | 〇 | 2026/10/13 | ci.ymlにbackendジョブ、ite-env.d.ts追加。現状は main 宛のpush/PRのみ起動 |
-| 11.8 | MySQL/Docker環境での結合確認 | × | - | docker compose up --build でV4〜V6の適用と推定フローを確認する |
+| 11.7 | CIにバックエンドテスト追加・型チェック修正 | 〇 | 2026/10/13 | ci.ymlにbackendジョブ、`vite-env.d.ts`追加。`main`・`ichikawa_work` へのpushと `main` 宛PRで起動 |
+| 11.8 | MySQL/Docker環境での結合確認 | × | - | `docker compose up --build` でV4〜V6の適用と推定フローを確認する |
 | 11.9 | カロリー計算の境界値テスト | × | - | RPE帯の境界、MINUTE/REP、未登録係数、丸め |
