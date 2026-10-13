@@ -1,7 +1,21 @@
-const PROFILE_KEY = 'trainingApp.accountProfile'
+const PROFILE_KEY_PREFIX = 'trainingApp.accountProfile:'
 
-export function getAccountBodyWeight(): number | null {
-  const savedProfile = localStorage.getItem(PROFILE_KEY)
+export function getCurrentAccountUsername(): string | null {
+  try {
+    const authUser = JSON.parse(localStorage.getItem('trainingapp:authUser') || 'null') as { username?: unknown } | null
+    return typeof authUser?.username === 'string' && authUser.username ? authUser.username : null
+  } catch {
+    return null
+  }
+}
+
+function profileKey(username: string): string {
+  return `${PROFILE_KEY_PREFIX}${encodeURIComponent(username)}`
+}
+
+export function getAccountBodyWeight(username = getCurrentAccountUsername()): number | null {
+  if (!username) return null
+  const savedProfile = localStorage.getItem(profileKey(username))
   if (!savedProfile) return null
 
   try {
@@ -14,10 +28,11 @@ export function getAccountBodyWeight(): number | null {
   }
 }
 
-export function saveAccountBodyWeight(bodyWeightKg: number): void {
+export function saveAccountBodyWeight(bodyWeightKg: number, username = getCurrentAccountUsername()): void {
   if (!Number.isFinite(bodyWeightKg) || bodyWeightKg < 20 || bodyWeightKg > 300) {
     throw new Error('体重は20〜300kgの範囲で入力してください')
   }
+  if (!username) throw new Error('ログインしてから体重を登録してください')
 
-  localStorage.setItem(PROFILE_KEY, JSON.stringify({ bodyWeightKg }))
+  localStorage.setItem(profileKey(username), JSON.stringify({ bodyWeightKg }))
 }

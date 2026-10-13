@@ -36,7 +36,7 @@ export default function Home(): JSX.Element {
           <h2 className="text-xl font-semibold mb-4">トレーニングを記録</h2>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link
-              to="/record"
+              to="/record/select"
               className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-lg font-medium text-center"
             >
               今すぐ記録
@@ -45,7 +45,7 @@ export default function Home(): JSX.Element {
               to="/menu"
               className="flex-1 border border-gray-600 text-gray-100 py-3 rounded-lg text-center"
             >
-              メニューから開始
+              メニューを作成
             </Link>
           </div>
 

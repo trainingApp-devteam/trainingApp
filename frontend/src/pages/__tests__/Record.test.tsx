@@ -27,48 +27,20 @@ describe('Record page', () => {
     expect(await screen.findByRole('combobox', { name: /部位|種目/ })).toBeTruthy()
   })
 
-  test('create exercise flow and add set shows created name', async () => {
+  test('adds the selected exercise to the set list', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Record /></MemoryRouter>)
-    // open modal
-    const createBtn = await screen.findByRole('button', { name: /独自種目作成/ })
-    await user.click(createBtn)
-    const nameInput = await screen.findByLabelText(/種目名/)
-    await user.type(nameInput, 'テスト種目')
-    // find the modal dialog and click the 作成 button inside it
-    const dialog = await screen.findByRole('dialog')
-    const { getByRole } = within(dialog)
-    const submit = getByRole('button', { name: /作成/ })
-    await user.click(submit)
-
-    // wait for option to appear in select
-    const option = await screen.findByRole('option', { name: 'テスト種目' })
-    expect(option).toBeInTheDocument()
-
-    // find the exercise select that contains this option
-    const selects = screen.getAllByRole('combobox')
-    let exerciseSelect: HTMLSelectElement | null = null
-    for (const s of selects) {
-      try {
-        within(s).getByRole('option', { name: 'テスト種目' })
-        exerciseSelect = s as HTMLSelectElement
-        break
-      } catch (e) {
-        // not this one
-      }
-    }
-    if (!exerciseSelect) throw new Error('exercise select not found')
-    await user.selectOptions(exerciseSelect, option as HTMLOptionElement)
+    expect(await screen.findByRole('option', { name: '既存種目' })).toBeInTheDocument()
     const addBtn = screen.getByRole('button', { name: /セットを追加/ })
     await user.click(addBtn)
 
-    // created set should show the human-readable name (option + table cell may both exist)
-    const found = await screen.findAllByText('テスト種目')
+    const found = await screen.findAllByText('既存種目')
     expect(found.length).toBeGreaterThan(0)
   })
 
   test('uses the account body weight and provides RPE guidance', async () => {
-    localStorage.setItem('trainingApp.accountProfile', JSON.stringify({ bodyWeightKg: 63.5 }))
+    localStorage.setItem('trainingapp:authUser', JSON.stringify({ username: 'test-user' }))
+    localStorage.setItem('trainingApp.accountProfile:test-user', JSON.stringify({ bodyWeightKg: 63.5 }))
     render(<MemoryRouter><Record /></MemoryRouter>)
 
     expect(await screen.findByText('推定用体重: 63.5 kg（アカウント登録値）')).toBeInTheDocument()

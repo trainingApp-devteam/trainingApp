@@ -12,6 +12,8 @@ type Exercise = { id: string; name: string; group?: string; isBuiltin?: boolean;
 
 export default function Record(): JSX.Element {
   const navigate = useNavigate()
+  const [autoStartPending, setAutoStartPending] = useState(false)
+  
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [date, setDate] = useState(() => new Date().toISOString().slice(0,10))
   const [exerciseId, setExerciseId] = useState('')
@@ -35,6 +37,8 @@ export default function Record(): JSX.Element {
   const [group, setGroup] = useState<string>('')
   
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [savedMenus, setSavedMenus] = useState<Array<{id:string;name:string;exercises:any[]}>>([])
+  const [selectedMenuId, setSelectedMenuId] = useState('')
 
 
   useEffect(() => {
@@ -72,6 +76,66 @@ export default function Record(): JSX.Element {
     })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('trainingapp:menus')
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        setSavedMenus(parsed)
+        if (parsed.length) setSelectedMenuId(parsed[0].id)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // read possible menuId from query to auto-apply
+  useEffect(() => {
+    try {
+      const qs = new URLSearchParams(window.location.search)
+      const menuId = qs.get('menuId')
+      if (!menuId) return
+      const raw = localStorage.getItem('trainingapp:menus')
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) return
+      const menu = parsed.find((m:any) => String(m.id) === String(menuId))
+      if (!menu) return
+      // convert exercises to SetItem and setPlanSets
+      const converted: SetItem[] = menu.exercises.map((me:any) => {
+        const s: any = { type: me.type }
+        s.exerciseId = me.exerciseId
+        s.exerciseName = me.exerciseName
+        if (me.type === 'reps') s.reps = me.reps
+        else s.timeSeconds = me.timeSeconds
+        if (me.weight !== undefined) s.weight = me.weight
+        return s as SetItem
+      })
+      setPlanSets(converted)
+      // if autoStart flag present, set exerciseId to first and mark pending start
+      const auto = qs.get('autoStart')
+      if (auto) {
+        if (converted.length) setExerciseId(converted[0].exerciseId || '')
+        setAutoStartPending(true)
+      }
+      // remove menuId from URL to prevent re-applying on refresh
+      qs.delete('menuId')
+      const newUrl = window.location.pathname + (qs.toString() ? `?${qs.toString()}` : '')
+      window.history.replaceState({}, '', newUrl)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // when planSets are applied, if autoStart was requested, start session
+  useEffect(() => {
+    if (autoStartPending && planSets.length > 0) {
+      setAutoStartPending(false)
+      try { startSession() } catch { /* ignore */ }
+    }
+  }, [autoStartPending, planSets])
 
   useEffect(() => {
     let cancelled = false
@@ -157,8 +221,13 @@ export default function Record(): JSX.Element {
   function removeSet(idx: number) { setPlanSets((s) => s.filter((_,i)=>i!==idx)) }
 
   function startSession() {
-    if (!exerciseId) return setError('種目を選択してください')
+    // allow starting when planSets provided (e.g. from saved menu) even if exerciseId not set
     if (planSets.length === 0) return setError('少なくとも1つのセットを追加してください')
+    if (!exerciseId && planSets.length > 0) {
+      // set exerciseId to first set's exercise if missing
+      const first = planSets[0]
+      if (first && first.exerciseId) setExerciseId(first.exerciseId)
+    }
     if (!validatePlanSets()) return
     setError(null)
     setInSession(true)
@@ -239,6 +308,7 @@ export default function Record(): JSX.Element {
       if (!Ctx) return
       if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
       const ctx = audioCtxRef.current
+      if (!ctx) return
       const o = ctx.createOscillator()
       const g = ctx.createGain()
       o.type = 'sine'
@@ -340,9 +410,32 @@ export default function Record(): JSX.Element {
                   ))}
                 </select>
                 </div>
-                <div className="flex gap-2 mt-2">
-                  <button type="button" onClick={() => setShowCreateModal(true)} className="px-3 py-1 rounded bg-blue-600 text-white">独自種目作成</button>
+                <div className="flex gap-2 mt-3 items-center">
+                  <select value={selectedMenuId} onChange={(e)=>setSelectedMenuId(e.target.value)} className="rounded px-3 py-2 bg-white text-gray-900 border">
+                    <option value="">-- 保存メニューから選択 --</option>
+                    {savedMenus.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                  <button type="button" onClick={() => {
+                    if (!selectedMenuId) return
+                    const menu = savedMenus.find(m=>m.id===selectedMenuId)
+                    if (!menu) return
+                    // convert menu.exercises to SetItem and setPlanSets
+                    const converted: SetItem[] = menu.exercises.map((me:any) => {
+                      const s: any = { type: me.type }
+                      s.exerciseId = me.exerciseId
+                      s.exerciseName = me.exerciseName
+                      if (me.type === 'reps') s.reps = me.reps
+                      else s.timeSeconds = me.timeSeconds
+                      if (me.weight !== undefined) s.weight = me.weight
+                      return s as SetItem
+                    })
+                    setPlanSets(converted)
+                  }} className="px-3 py-1 rounded bg-indigo-600 text-white">メニューを適用</button>
                 </div>
+                {/* 独自種目作成ボタンは一時的に非表示 */}
+                {/* <div className="flex gap-2 mt-2">
+                  <button type="button" onClick={() => setShowCreateModal(true)} className="px-3 py-1 rounded bg-blue-600 text-white">独自種目作成</button>
+                </div> */}
           </label>
 
           
@@ -485,17 +578,20 @@ export default function Record(): JSX.Element {
               setShowCreateModal(false)
               // ensure group list contains the created exercise's group
               if (ex.group) {
+                const g = ex.group
                 setGroups((prev) => {
-                  if (prev.find((g) => g.id === ex.group)) return prev
-                  return [{ id: ex.group, name: ex.group }, ...prev]
+                  if (prev.find((pg) => pg.id === g)) return prev
+                  return [{ id: g, name: g }, ...prev]
                 })
                 // switch current group to the created exercise's group so it's visible
-                setGroup(ex.group)
+                setGroup(g)
               }
               // prepend created exercise so UI shows it immediately
               setExercises((prev) => {
+                if (!ex.id || !ex.name) return prev
                 if (prev.find((p) => p.id === ex.id)) return prev
-                return [ex, ...prev]
+                const item: Exercise = { id: ex.id, name: ex.name, group: ex.group }
+                return [item, ...prev]
               })
               // backfill any existing planSets that referenced this id but lacked a name
               setPlanSets((prev) => prev.map((s) => {
@@ -509,7 +605,8 @@ export default function Record(): JSX.Element {
               searchExercises('', cat).then((list) => {
                 setExercises((prev) => {
                   const ids = new Set(prev.map((p) => p.id))
-                  const merged = list.filter((l) => !ids.has(l.id))
+                  // ensure incoming items have required id and name
+                  const merged = list.filter((l) => l && l.id && l.name && !ids.has(l.id)) as Exercise[]
                   return [ ...prev, ...merged ]
                 })
               }).catch(() => {})

@@ -29,18 +29,27 @@
 |  2.5 | Home: 身体測定スニペット                 | 〇    | 2026/9/26 | 身体測定のプレースホルダ表示あり |
 |  2.6 | Home: レスポンシブ調整                   | 〇    | 2026/9/26 | Tailwind グリッドで対応済み      |
 |  2.7 | Home: テスト/確認                        | 〇    | 2026/9/27 | 単体テスト（Vitest/Testing Library）実施済み |
-| 2.8 | Record: UX 設計                          | 〇    | 2026/9/27 | `frontend/src/pages/Record.tsx` にメニュー作成・実行フロー、タイマー、ラベル等を実装 |
-| 2.9 | Record: 種目検索コンポーネント           | ×    | -         | モーダル式の種目検索は撤回。部位（グループ）→種目セレクトへ統合（frontend/src/pages/Record.tsx） |
-| 2.10 | Record: セット入力 UI                    | 〇    | 2026/9/27 | 行の追加/削除/並べ替え/編集を `frontend/src/pages/Record.tsx` で実装。セット遷移時のタイマーリセットを修正 |
-| 2.11 | Record: 入力バリデーション               | 〇    | 2026/9/27 | 回数/時間/負荷の基本バリデーションを追加（追加ボタン無効化、開始前の全セット検証を実装）            |
-| 2.12 | Record: 保存処理 + API 結合              | 〇    | 2026/9/27 | `frontend/src/api/records.ts` と MSW ハンドラで保存処理を実装（`frontend/src/mocks/handlers.ts`）               |
-| 2.13 | Record: アクセシビリティ/UX              | 〇    | 2026/9/27 | キーボード操作（Enterで追加）、aria-live/role=alert、フォーカスリングを実装 |
-| 2.14 | Record: テスト                           | 〇    | 2026/9/27 | Record ページの単体テストを追加（frontend/src/pages/__tests__/Record.test.tsx） |
-| 2.15 | Exercise Select: 検索 UX                 | 〇    | 2026/9/27 | モーダルは採用せず、部位→種目セレクト方式に変更し Record に統合 |
-| 2.16 | Exercise Select: 検索 API モック         | 〇    | 2026/9/27 | `frontend/src/mocks/handlers.ts` に `/api/exercises` モックを追加                     |
-| 2.17 | Exercise Select: 複数選択（撤回）        | -    | -         | 複数選択機能は採用を撤回。Record は部位→種目のセレクト方式に統合                     |
-| 2.18 | Exercise Select: 独自種目作成モーダル    | 〇    | 2026/9/27 | 独自種目作成モーダルを実装（frontend/src/components/CreateExerciseModal.tsx） |
-| 2.19 | Exercise Select: テスト                  | 〇    | 2026/9/27 | CreateExerciseModal の単体テストを追加（frontend/src/components/__tests__/CreateExerciseModal.test.tsx） |
+| 2.8 | Home: 表示文言更新（「メニューから開始」→「メニューを作成」） | 〇 | 2026/9/29 | Home のリンク文言と遷移先を `/record/select` に変更 |
+| 2.9 | Record: UX 設計                          | 〇    | 2026/9/27 | `frontend/src/pages/Record.tsx` にメニュー作成・実行フロー、タイマー、ラベル等を実装 |
+| 2.10 | Record: 種目検索コンポーネント           | ×    | -         | モーダル式の種目検索は撤回。部位（グループ）→種目セレクトへ統合（frontend/src/pages/Record.tsx） |
+| 2.11 | Record: セット入力 UI                    | 〇    | 2026/9/27 | 行の追加/削除/並べ替え/編集を `frontend/src/pages/Record.tsx` で実装。セット遷移時のタイマーリセットを修正 |
+| 2.12 | Record: 入力バリデーション               | 〇    | 2026/9/27 | 回数/時間/負荷の基本バリデーションを追加（追加ボタン無効化、開始前の全セット検証を実装）            |
+| 2.13 | Record: 保存処理 + API 結合              | 〇    | 2026/9/27 | `frontend/src/api/records.ts` と MSW ハンドラで保存処理を実装（`frontend/src/mocks/handlers.ts`）               |
+| 2.14 | Record: アクセシビリティ/UX              | 〇    | 2026/9/27 | キーボード操作（Enterで追加）、aria-live/role=alert、フォーカスリングを実装 |
+| 2.15 | Record: テスト                           | 〇    | 2026/9/27 | Record ページの単体テストを追加（frontend/src/pages/__tests__/Record.test.tsx） |
+| 2.16 | Exercise Select: 検索 UX                 | 〇    | 2026/9/27 | モーダルは採用せず、部位→種目セレクト方式に変更し Record に統合 |
+| 2.17 | Exercise Select: 検索 API モック         | 〇    | 2026/9/27 | `frontend/src/mocks/handlers.ts` に `/api/exercises` モックを追加                     |
+| 2.18 | Exercise Select: 複数選択（撤回）        | -    | -         | 複数選択機能は採用を撤回。Record は部位→種目のセレクト方式に統合                     |
+| 2.19 | Exercise Select: 独自種目作成モーダル    | 〇    | 2026/9/27 | 独自種目作成モーダルを実装（frontend/src/components/CreateExerciseModal.tsx） |
+| 2.20 | Exercise Select: テスト                  | 〇    | 2026/9/27 | CreateExerciseModal の単体テストを追加（frontend/src/components/__tests__/CreateExerciseModal.test.tsx） |
+| 2.21 | 新ルート: 選択画面 `/record/select` の追加 | 〇 | 2026/9/28 | `frontend/src/pages/SelectRecordMode.tsx` を追加：新規作成 or 保存メニュー選択を選べる画面 |
+| 2.22 | SelectMenu: 保存済メニュー選択ページ     | 〇 | 2026/9/28 | `frontend/src/pages/SelectMenu.tsx` を追加。選択で `/record?menuId=<id>&autoStart=1` に遷移 |
+| 2.23 | Record: 保存済メニューからの自動開始対応 | 〇 | 2026/9/28 | `Record.tsx` が `menuId`/`autoStart` を受け取り、plan をセット後に自動開始する `autoStartPending` パターンを実装 |
+| 2.24 | Record: 独自種目作成ボタン一時非表示     | 〇 | 2026/9/28 | UI から独自作成ボタンを隠す（機能自体は残すがフローから除外） |
+| 2.25 | Account: 表示名削除（username/password に簡素化） | 〇 | 2026/9/29 | `frontend/src/pages/Account.tsx` の表示名入力／保存機能を削除し、`trainingapp:users`/`trainingapp:authUser` の構造を簡素化 |
+| 2.26 | Body: 身体測定登録機能実装              | 〇 | 2026/9/29 | `frontend/src/pages/Body.tsx` に日付/身長/体重/体脂肪を保存するフォームと `trainingapp:bodyMeasurements` の localStorage 永続化を実装 |
+| 2.27 | localStorage: 使用キーの明記           | 〇 | 2026/9/29 | 使用キー: `trainingapp:menus`, `trainingapp:users`, `trainingapp:authUser`, `trainingapp:bodyMeasurements` |
+| 2.28 | 自動開始の動作確認（手動検証）          | △ | - | 開発サーバ上で `npm run dev` 実行後、Home→メニュー選択→保存メニュー選択で自動開始されることを要検証 |
 
 3. フロントエンド拡張（優先4〜等）
 
