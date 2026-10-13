@@ -457,6 +457,78 @@ class ApiIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void selectsMetByRpeBandBoundariesAndRoundsToTwoDecimals() throws Exception {
+        MockHttpSession session = login(owner);
+        long treadmill = jdbc.queryForObject("SELECT id FROM exercises WHERE exercise_code = 'treadmill'", Long.class);
+        long bench = jdbc.queryForObject("SELECT id FROM exercises WHERE exercise_code = 'bench_press'", Long.class);
+
+        // 80kg, 60 seconds: kcal = MET * 3.5 * 80 / 200 = MET * 1.4
+        double[] minuteKcal = {4.9, 4.9, 8.4, 8.4, 11.2, 11.2};
+        int[] minuteRpe = {1, 4, 5, 7, 8, 10};
+        for (int i = 0; i < minuteRpe.length; i++) {
+            estimate(session, treadmill, "MINUTE", minuteRpe[i], "80", "\"durationSeconds\":60")
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.estimatedCaloriesKcal").value(minuteKcal[i]));
+        }
+
+        // 80kg, 10 reps at 3 seconds: 30 seconds of work
+        estimate(session, bench, "REP", 6, "80", "\"reps\":10")
+                .andExpect(jsonPath("$.estimatedCaloriesKcal").value(2.45));
+        estimate(session, bench, "REP", 7, "80", "\"reps\":10")
+                .andExpect(jsonPath("$.estimatedCaloriesKcal").value(4.2));
+
+        // 3.5 * 3.5 * 60 / 200 = 3.675, rounded half up
+        estimate(session, treadmill, "MINUTE", 1, "60", "\"durationSeconds\":60")
+                .andExpect(jsonPath("$.estimatedCaloriesKcal").value(3.68));
+
+        estimate(session, treadmill, "MINUTE", 5, "20", "\"durationSeconds\":60").andExpect(status().isCreated());
+        estimate(session, treadmill, "MINUTE", 5, "300", "\"durationSeconds\":60").andExpect(status().isCreated());
+        estimate(session, treadmill, "MINUTE", 5, "19.9", "\"durationSeconds\":60").andExpect(status().isBadRequest());
+        estimate(session, treadmill, "MINUTE", 5, "300.1", "\"durationSeconds\":60").andExpect(status().isBadRequest());
+        estimate(session, treadmill, "MINUTE", 0, "80", "\"durationSeconds\":60").andExpect(status().isBadRequest());
+        estimate(session, treadmill, "MINUTE", 11, "80", "\"durationSeconds\":60").andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsMismatchedBasisAndUnsupportedExercises() throws Exception {
+        MockHttpSession session = login(owner);
+        long treadmill = jdbc.queryForObject("SELECT id FROM exercises WHERE exercise_code = 'treadmill'", Long.class);
+        long bench = jdbc.queryForObject("SELECT id FROM exercises WHERE exercise_code = 'bench_press'", Long.class);
+        long squat = jdbc.queryForObject("SELECT id FROM exercises WHERE exercise_code = 'squat'", Long.class);
+
+        estimate(session, treadmill, "MINUTE", 5, "80", "\"reps\":10").andExpect(status().isBadRequest());
+        estimate(session, bench, "REP", 5, "80", "\"durationSeconds\":60").andExpect(status().isBadRequest());
+        estimate(session, bench, "REP", 5, "80", "\"reps\":10,\"durationSeconds\":60").andExpect(status().isBadRequest());
+        estimate(session, bench, "REP", 5, "80", "\"reps\":501").andExpect(status().isBadRequest());
+        estimate(session, bench, "HOUR", 5, "80", "\"reps\":10").andExpect(status().isBadRequest());
+        // no rate for REP on a cardio machine, and no rate for an exercise without calorie support
+        estimate(session, treadmill, "REP", 5, "80", "\"reps\":10").andExpect(status().isUnprocessableEntity());
+        estimate(session, squat, "REP", 5, "80", "\"reps\":10").andExpect(status().isUnprocessableEntity());
+        estimate(session, 999999L, "REP", 5, "80", "\"reps\":10").andExpect(status().isUnprocessableEntity());
+
+        MvcResult custom = mockMvc.perform(post("/api/v1/exercises")
+                        .session(session)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"my bench\",\"category\":\"chest\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long customId = new ObjectMapper().readTree(custom.getResponse().getContentAsString()).get("id").asLong();
+        estimate(session, customId, "REP", 5, "80", "\"reps\":10").andExpect(status().isUnprocessableEntity());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions estimate(
+            MockHttpSession session, long exerciseId, String basis, int rpe, String bodyWeightKg, String amount)
+            throws Exception {
+        return mockMvc.perform(post("/api/v1/calorie-estimates")
+                .session(session)
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"exerciseId\":" + exerciseId + ",\"basis\":\"" + basis + "\",\"rpe\":" + rpe
+                        + ",\"bodyWeightKg\":" + bodyWeightKg + "," + amount + "}"));
+    }
+
     private MockHttpSession login(String username) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .with(csrf())
