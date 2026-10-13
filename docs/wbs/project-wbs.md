@@ -95,7 +95,7 @@
 
 |  ID | 作業                                     | 状態 | 完了日 | 備考               |
 | --: | ---------------------------------------- | ---- | ------ | ------------------ |
-| 7.1 | 単体テスト作成（フロント/バック）        | △    | -      | Frontend 12件（Account/Record/HistoryDetail等）、Backend統合テスト10件（カロリー境界値を含む）。Backend単体（クラス単位）テストは後続 |
+| 7.1 | 単体テスト作成（フロント/バック） | 〇 | 2026/10/13 | Frontend 25件（apiクライアント、記録API変換、履歴/履歴詳細/Account/Record/Home/モーダル）、Backend 統合12件+単体8件（ApiValues、RequestIdFilter）。CIで自動実行 |
 | 7.2 | 統合テスト（API 結合）                   | 〇    | 2026/10/04 | Spring API結合テストで認証/CSRF、CRUD、所有権、ルーティン目標値を検証 |
 | 7.3 | E2E テスト（Playwright/Cypress）スモーク | 〇 | 2026/10/13 | Playwrightスモーク（`frontend/e2e/smoke.spec.ts`）。ログイン→体重登録→保存メニューの自動開始→記録→推定kcal表示→編集を実Backend+Frontendで検証。CIのe2eジョブでも実行 |
 
