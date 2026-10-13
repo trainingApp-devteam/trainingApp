@@ -51,22 +51,17 @@
 
 ```mermaid
 flowchart LR
-    U[スマートフォン / PCブラウザー] -->|HTTPS| DNS[ドメイン DNS]
-    DNS --> ENTRY
-    subgraph HOST[単一VPS上のDocker Compose]
-        ENTRY[さくらのVPS 等: public IP / firewall]
-        RP[Caddy HTTPS・静的配信・API reverse proxy]
-        FE[React + TypeScript build]
-        BE[Java Spring Boot]
-        DB[(MySQL private network + volume)]
-        ENTRY --> RP
-        RP --> FE
-        RP -->|/api| BE
+    PC[開発PCのブラウザー] --> WEB
+    PHONE[同一LAN内のスマートフォン] --> WEB
+    REMOTE[LAN外のテスター] -. 一時共有時のみ .-> TUNNEL[Cloudflare Quick Tunnel]
+    TUNNEL -. tunnel .-> WEB
+    subgraph TEST[開発PC上のDocker Compose：テスト環境]
+        WEB[Reactテスト画面 + API proxy]
+        BE[Java Spring Boot API]
+        DB[(MySQL + named volume)]
+        WEB -->|/api| BE
         BE --> DB
     end
-    GH[GitHub repository + Actions CI] -. build/test/deploy .-> HOST
-    BAK[暗号化した外部バックアップ先] -. backup .-> DB
-    FE -. MVP後 OAuth/Web Playback .-> SP[Spotify]
 ```
 
 | 領域 | 採用方針 |
@@ -76,18 +71,19 @@ flowchart LR
 | DB | 開発・初期公開ともMySQLを基本とし、Compose内のprivate networkに配置 |
 | DB変更管理 | Flyway等のバージョン管理されたマイグレーション |
 | ローカル環境 | Docker ComposeでCaddy相当のproxy、frontend、backend、MySQLを起動 |
-| 初期公開案 | 1台の低価格VPS（例: さくらのVPS）にDocker Composeで配置。サービス・プランは契約前に再確認 |
-| DNS/TLS | 独自ドメインとDNS。CaddyがLet's Encrypt証明書を自動管理する案 |
-| CI | GitHub Actionsでテスト・ビルド。デプロイ自動化は秘密情報管理を確認後に有効化 |
-| Backup | VPSとは別の保存先へ暗号化したDBバックアップを保管する案 |
+| テスト環境 | 既存の開発PCでDocker Composeを起動。frontend、backend、MySQLの3サービス |
+| PCからのアクセス | `http://localhost:<frontend-port>`。同一LAN内ならスマートフォンからもアクセス |
+| LAN外からの一時アクセス | 必要な場合のみCloudflare Quick Tunnel。独自ドメイン・サーバー契約不要、URLは一時的 |
+| DB | MySQLをCompose内部だけに配置し、named volumeでテスト中のデータを保持 |
+| 最終公開 | 今回は検討対象外。公開サービス・プランは決定しない |
 
-単一VPS構成は構成が理解しやすく、Docker/MySQLを学ぶ目的に合う一方、VPS障害がアプリとDBの両方に影響する。DBポートは公開せず、SSHは鍵認証に限定する。バックアップ保存先、ドメイン費用、VPS月額は無料とは限らないため、初期公開前に予算と復元性を確定する。詳しい配置・代替案は[アーキテクチャ設計書](architecture.md)、運用詳細は[インフラ・運用設計書](detailed-design/infrastructure-design.md)を参照する。
+新たなクラウド契約をせず、既存PC上のComposeを使うため、テスト環境の追加利用料は0円を目標とする（PCの電気代・既存回線費用は除く）。LAN外共有はQuick Tunnelを起動している間だけ有効で、URLを知る人がアクセスできるため、メール制限と架空データを使う。今回のテストでは本番公開の可用性、バックアップ、ドメインは扱わない。Quick Tunnelの条件と手順は[インフラ・運用設計書](detailed-design/infrastructure-design.md)、将来の公開候補は[アーキテクチャ設計書](architecture.md)を参照する。
 
 ## 6. 主要な設計方針
 
 - **利用者データの分離**: 対象ユーザーIDはログインセッションから取得する。リクエストで指定されたuserIdを認可判断に使用しない。
 - **健康関連情報の最小化**: 初期の測定項目は身長・体重とし、項目マスタを使って将来の追加に対応する。
-- **消費カロリー**: 種目ごとのカロリー係数を事前にDBへ登録し、セットの回数または時間から推定値を計算して記録する。推定値であることを画面で明示する。係数の出典・改訂は別途管理する。
+- **消費カロリー**: 標準種目のMET係数をRPE帯ごとにDBへseedし、体重・RPE・動作時間からサーバー側で推定する。推定入力と結果をDBに保存し、概算であることを画面に明示する。
 - **記録の拡張性**: セットは回数または時間の一方を持ち、重量は任意とする。時間は秒で保持する案。
 - **アカウント状態**: 招待後の申請は承認待ちとし、Adminのみが有効化する。
 - **削除範囲**: 個別記録の削除は可能。アカウントと全データの一括削除は初期リリースで提供しない。
@@ -95,11 +91,11 @@ flowchart LR
 
 詳細な業務ルールは[業務機能設計書](detailed-design/functional-design.md)、テーブルと制約は[データ設計書](detailed-design/data-design.md)、APIと画面の契約は各詳細設計書を参照する。
 
-## 7. 公開・費用方針
+## 7. テスト環境・費用方針
 
-初期公開案は単一の低価格VPS上で、Caddy、React静的ファイル、Spring Boot API、MySQLをDocker Composeで運用する。MySQLは公開ネットワークに出さない。ドメイン、VPS、バックアップ領域が有料となる可能性を踏まえ、契約前に月額費用を確認する。
+テストは既存の開発PC上でReact、Spring Boot、MySQLをDocker Compose起動して行う。新たなVPS、独自ドメイン、マネージドDBは契約せず、追加利用料は0円を目標とする。PCのブラウザーと同一LAN内のスマートフォンからアクセスし、LAN外の共有が必要なときのみQuick Tunnelを利用する。テストデータは架空のものに限定する。
 
-将来、可用性や保守負荷を改善する必要があれば、静的ホスティング、Java API実行環境、マネージドMySQL互換DBへ分離する。TiDB Cloud Starter等を候補とする場合も、無料枠・SQL互換性・バックアップ・復元・停止・課金条件をその時点の公式情報で確認する。料金や無料枠を恒久保証として扱わない。
+本番公開構成とその費用は今回決定せず、テスト完了後に改めて検討する。以前の公開候補と価格比較は[アーキテクチャ設計書](architecture.md)に参考として残す。
 
 ## 8. Spotify連携方針
 
@@ -125,6 +121,6 @@ Spotify連携はMVP後の機能とし、画面内再生を前提とする。Web 
 2. パスワードリセットを初期リリースに含めるか、本人確認をどう行うか。
 3. 身長・体重以外に追加する測定項目の表示名、単位、入力範囲。
 4. 消費カロリー係数の算出根拠、適用単位、対象種目、係数の初期データと改訂責任者。
-5. 本番ホスト、ドメイン、予算上限、バックアップ保存先と頻度。VPSの実サービス・プランは契約前に確認する。
+5. 本番ホストを2GB VPSまたはOracle Cloud Always Freeのどちらにするか、予算上限、ドメイン、バックアップ保存先と頻度。VPSプランと無料枠条件は契約前に確認する。
 6. Spotify連携実装時の規約・Premium要件・アプリ登録条件。
 7. 公開前に各サービスの料金・利用条件を確認する担当者と確認日。

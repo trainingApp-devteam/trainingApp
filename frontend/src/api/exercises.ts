@@ -1,7 +1,17 @@
+<<<<<<< HEAD
 import { apiRequest } from './client'
 
 type BackendExercise = { id: number; name: string; category?: string | null }
 export type Exercise = { id: string; name: string; group?: string }
+=======
+export type Exercise = {
+  id: string
+  name: string
+  group?: string
+  isBuiltin?: boolean
+  calorieEnabled?: boolean
+}
+>>>>>>> 3dd71bc16ad53b976676a283f5be393cace8c33a
 
 export async function searchExercises(q = '', category?: string): Promise<Exercise[]> {
   const url = new URL('/api/v1/exercises', location.origin)

@@ -1,14 +1,15 @@
 import React, { useEffect, useState, Suspense } from "react";
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { searchExercises, listExerciseGroups, createExercise } from '../api/exercises'
+import { getAccountBodyWeight } from '../api/accountProfile'
 import CreateExerciseModal from '../components/CreateExerciseModal'
-import { createRecord } from '../api/records'
+import { createCalorieEstimate, createRecord } from '../api/records'
 import type { SetItem } from '../api/records'
 import { listRoutines, Routine } from '../api/routines'
 // Spotify integration removed — restored original Record page
 // ExerciseSelect modal removed
 
-type Exercise = { id: string; name: string; group?: string }
+type Exercise = { id: string; name: string; group?: string; isBuiltin?: boolean; calorieEnabled?: boolean }
 
 export default function Record(): JSX.Element {
   const navigate = useNavigate()
@@ -24,6 +25,8 @@ export default function Record(): JSX.Element {
   const [reps, setReps] = useState<number>(8)
   const [timeSeconds, setTimeSeconds] = useState<number>(60)
   const [weight, setWeight] = useState<number | ''>('')
+  const [rpe, setRpe] = useState<number>(6)
+  const [bodyWeightKg] = useState<number | null>(() => getAccountBodyWeight())
 
   // session state
   const [inSession, setInSession] = useState(false)
@@ -152,10 +155,13 @@ export default function Record(): JSX.Element {
     }
     if (weight !== '' && (Number.isNaN(Number(weight)) || Number(weight) < 0)) return setError('負荷は0以上の数値で入力してください')
 
+    const chosen = exercises.find((e) => e.id === exerciseId)
+    const calorieEnabled = chosen?.isBuiltin === true && chosen.calorieEnabled === true
+    if (calorieEnabled && bodyWeightKg === null) return setError('消費カロリーを推定するには、アカウントで体重を登録してください')
+
     const newSet: SetItem = { type: setType }
     newSet.exerciseId = exerciseId
     // capture the display name and group at creation time so it doesn't change later
-    const chosen = exercises.find((e) => e.id === exerciseId)
     if (chosen) {
       newSet.exerciseName = chosen.name
       newSet.exerciseGroup = chosen.group
@@ -163,6 +169,9 @@ export default function Record(): JSX.Element {
     if (setType === 'reps') newSet.reps = reps
     else newSet.timeSeconds = timeSeconds
     if (weight !== '') newSet.weight = Number(weight)
+    newSet.rpe = rpe
+    if (bodyWeightKg !== null) newSet.bodyWeightKg = bodyWeightKg
+    newSet.calorieEnabled = calorieEnabled
     setPlanSets((s) => [...s, newSet])
     setError(null)
   }
@@ -181,6 +190,11 @@ export default function Record(): JSX.Element {
         if (!s.timeSeconds || !Number.isInteger(s.timeSeconds) || s.timeSeconds < 1) { setError(`セット ${i+1} の時間が不正です`); return false }
       }
       if (s.weight !== undefined && (Number.isNaN(Number(s.weight)) || Number(s.weight) < 0)) { setError(`セット ${i+1} の負荷が不正です`); return false }
+      if (!s.rpe || !Number.isInteger(s.rpe) || s.rpe < 1 || s.rpe > 10) { setError(`セット ${i+1} のRPEが不正です`); return false }
+      if (s.calorieEnabled && (!s.bodyWeightKg || s.bodyWeightKg < 20 || s.bodyWeightKg > 300)) {
+        setError('消費カロリーを推定するには、アカウントで体重を登録してください')
+        return false
+      }
     }
     setError(null)
     return true
@@ -225,7 +239,26 @@ export default function Record(): JSX.Element {
   async function finishAndSave() {
     setLoading(true)
     try {
-      await createRecord({ date, exerciseId, sets: planSets })
+      const calculatedSets = await Promise.all(planSets.map(async (set) => {
+        if (!set.calorieEnabled || !set.exerciseId) return set
+        if (!set.bodyWeightKg) throw new Error('消費カロリーを推定するには、アカウントで体重を登録してください')
+        const estimate = await createCalorieEstimate({
+          exerciseCode: set.exerciseId,
+          basis: set.type === 'reps' ? 'REP' : 'MINUTE',
+          rpe: set.rpe || 6,
+          bodyWeightKg: set.bodyWeightKg,
+          externalLoadKg: set.weight,
+          reps: set.reps,
+          durationSeconds: set.timeSeconds,
+        })
+        return {
+          ...set,
+          estimatedCaloriesKcal: estimate.estimatedCaloriesKcal,
+          calorieEstimateId: estimate.estimateId,
+          calorieNote: estimate.note,
+        }
+      }))
+      await createRecord({ date, exerciseId, sets: calculatedSets })
       navigate('/history')
     } catch (err: any) {
       setError(err.message || '保存に失敗しました')
@@ -426,6 +459,35 @@ export default function Record(): JSX.Element {
               <input type="number" min={0} value={weight as any} onChange={(e)=>setWeight(e.target.value === '' ? '' : Number(e.target.value))} className="w-32 rounded px-2 py-1 bg-white text-gray-900 border" />
             </div>
 
+            <label className="mb-2 flex items-center gap-2">
+              <span className="text-sm text-gray-700">きつさ（RPE 1〜10）</span>
+              <input type="range" min={1} max={10} step={1} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
+              <span className="ml-2 text-sm text-gray-700">{rpe}</span>
+              <span className="group relative inline-flex">
+                <button
+                  type="button"
+                  aria-label="RPEの目安"
+                  aria-describedby="rpe-help"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-500 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  ?
+                </button>
+                <span
+                  id="rpe-help"
+                  role="tooltip"
+                  className="invisible absolute right-0 top-7 z-20 w-72 rounded border border-gray-300 bg-white p-3 text-left text-xs leading-5 text-gray-800 opacity-0 shadow-lg group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                >
+                  あと何回、フォームを保ってできそうだったかで決めます。RPE 10は余力なし、9はあと1回、8はあと2回、7はあと3回、6はあと4回以上が目安です。フォームが崩れる回数は数えません。
+                </span>
+              </span>
+            </label>
+
+            <div className="mb-3 text-sm text-gray-700">
+              推定用体重: {bodyWeightKg === null ? (
+                <Link to="/account" className="font-medium text-blue-700 underline">未登録（アカウントで登録）</Link>
+              ) : `${bodyWeightKg} kg（アカウント登録値）`}
+            </div>
+
             <div className="flex gap-2">
               {(() => {
                 const canAdd = exerciseId && (setType === 'reps' ? (Number.isInteger(reps) && reps >= 1) : (Number.isInteger(timeSeconds) && timeSeconds >= 1))
@@ -458,6 +520,8 @@ export default function Record(): JSX.Element {
                       <th className="px-4 py-2">種類</th>
                       <th className="px-4 py-2">値</th>
                       <th className="px-4 py-2">負荷</th>
+                      <th className="px-4 py-2">RPE</th>
+                      <th className="px-4 py-2">推定kcal</th>
                       <th className="px-4 py-2">操作</th>
                     </tr>
                   </thead>
@@ -468,7 +532,9 @@ export default function Record(): JSX.Element {
                                 <td className="px-4 py-3 align-top text-gray-900">{s.exerciseName || exercises.find(e=>e.id===s.exerciseId)?.name || s.exerciseId}</td>
                         <td className="px-4 py-3 align-top">{s.type === 'reps' ? '回数' : '時間'}</td>
                         <td className="px-4 py-3 align-top">{s.type === 'reps' ? `${s.reps} 回` : `${s.timeSeconds} 秒`}</td>
-                                <td className="px-4 py-3 align-top">{s.weight ? `${s.weight} kg` : '-'}</td>
+                              <td className="px-4 py-3 align-top">{s.weight !== undefined ? `${s.weight} kg` : '-'}</td>
+                              <td className="px-4 py-3 align-top">{s.rpe ?? '-'}</td>
+                              <td className="px-4 py-3 align-top">{s.estimatedCaloriesKcal === undefined ? (s.calorieEnabled ? '保存時に計算' : '対象外') : `${s.estimatedCaloriesKcal} kcal`}</td>
                         <td className="px-4 py-3 align-top">
                           <div className="flex gap-2">
                             <button type="button" onClick={() => moveSet(i, -1)} className="px-2 py-1 bg-gray-100 rounded">↑</button>
@@ -610,6 +676,8 @@ export default function Record(): JSX.Element {
                       <th className="px-4 py-2">種類</th>
                       <th className="px-4 py-2">値</th>
                       <th className="px-4 py-2">負荷</th>
+                      <th className="px-4 py-2">RPE</th>
+                      <th className="px-4 py-2">推定kcal</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -623,7 +691,9 @@ export default function Record(): JSX.Element {
                         <td className="px-4 py-3 align-top text-gray-900">{s.exerciseName || exercises.find(e=>e.id===s.exerciseId)?.name || s.exerciseId}</td>
                         <td className="px-4 py-3 align-top">{s.type === 'reps' ? '回数' : '時間'}</td>
                         <td className="px-4 py-3 align-top">{s.type === 'reps' ? `${s.reps} 回` : `${s.timeSeconds} 秒`}</td>
-                        <td className="px-4 py-3 align-top">{s.weight ? `${s.weight} kg` : '-'}</td>
+                        <td className="px-4 py-3 align-top">{s.weight !== undefined ? `${s.weight} kg` : '-'}</td>
+                        <td className="px-4 py-3 align-top">{s.rpe ?? '-'}</td>
+                        <td className="px-4 py-3 align-top">{s.estimatedCaloriesKcal === undefined ? (s.calorieEnabled ? '未計算' : '対象外') : `${s.estimatedCaloriesKcal} kcal`}</td>
                       </tr>
                     ))}
                   </tbody>

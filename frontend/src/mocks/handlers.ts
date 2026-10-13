@@ -1,5 +1,6 @@
 import { rest } from 'msw'
 
+<<<<<<< HEAD
 const exercises = [
   ['トレッドミル', '有酸素'], ['アップライトバイク', '有酸素'], ['リカンベントバイク', '有酸素'],
   ['クロストレーナー', '有酸素'], ['チェストプレス', '胸'], ['ベンチプレス', '胸'],
@@ -8,6 +9,34 @@ const exercises = [
   ['スクワット', '脚'], ['アブドミナル', '腹'], ['腹筋台', '腹'], ['ダンベル', 'フリーウェイト'],
   ['スミスマシン', 'フリーウェイト'], ['パワーラック', 'フリーウェイト'],
 ].map(([name, category], index) => ({ id: index + 1, name, category, shared: true }))
+=======
+const sampleExercises = [
+  { id: 'treadmill', name: 'トレッドミル', group: '有酸素' },
+  { id: 'upright_bike', name: 'アップライトバイク', group: '有酸素' },
+  { id: 'recumbent_bike', name: 'リカンベントバイク', group: '有酸素' },
+  { id: 'cross_trainer', name: 'クロストレーナー', group: '有酸素' },
+  { id: 'chest_press', name: 'チェストプレス', group: '胸' },
+  { id: 'lat_pulldown', name: 'ラットプルダウン', group: '背中' },
+  { id: 'overhead_press', name: 'オーバーヘッドプレス', group: '肩' },
+  { id: 'leg_extension', name: 'レッグエクステンション', group: '脚' },
+  { id: 'leg_curl', name: 'レッグカール', group: '脚' },
+  { id: 'leg_press', name: 'レッグプレス', group: '脚' },
+  { id: 'hip_abduction_adduction', name: 'ヒップアブダクション・アダクション', group: '脚' },
+  { id: 'abdominal', name: 'アブドミナル', group: '腹' },
+  { id: 'back_extension', name: 'バックエクステンション', group: '背中' },
+  { id: 'decline_bench', name: '腹筋台', group: '腹' },
+  { id: 'hyperextension_bench', name: '背筋台', group: '背中' },
+  { id: 'dumbbell', name: 'ダンベル', group: 'フリーウェイト' },
+  { id: 'smith_machine', name: 'スミスマシン', group: 'フリーウェイト' },
+  { id: 'bench_press', name: 'ベンチプレス', group: '胸' },
+  { id: 'power_rack', name: 'パワーラック', group: 'フリーウェイト' },
+  { id: 'dips_chinning', name: 'ディップス・チンニングマシン', group: '背中' },
+].map((exercise) => ({
+  ...exercise,
+  isBuiltin: true,
+  calorieEnabled: !['dumbbell', 'smith_machine', 'power_rack'].includes(exercise.id),
+}))
+>>>>>>> 3dd71bc16ad53b976676a283f5be393cace8c33a
 
 let nextExerciseId = exercises.length + 1
 let sessions: Array<Record<string, any>> = []
@@ -90,6 +119,7 @@ export const handlers = [
     return res(ctx.status(204))
   }),
 
+<<<<<<< HEAD
   rest.get('/api/v1/body-measurements', (req, res, ctx) => {
     const code = req.url.searchParams.get('measurementTypeCode')
     const content = code ? measurements.filter((item) => item.measurementTypeCode === code) : measurements
@@ -112,6 +142,21 @@ export const handlers = [
   rest.delete('/api/v1/body-measurements/:id', (req, res, ctx) => {
     measurements = measurements.filter((item) => item.id !== Number(req.params.id))
     return res(ctx.status(204))
+=======
+  // Create exercise (custom)
+  rest.post('/api/exercises', async (req, res, ctx) => {
+    try {
+      const body = await req.json()
+      const raw = String(body.name || '')
+      const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+      const id = slug ? `${slug}_${Date.now()}` : `ex_${Date.now()}`
+      const ex = { id, name: raw, group: body.group || 'その他', isBuiltin: false, calorieEnabled: false }
+      sampleExercises.push(ex)
+      return res(ctx.status(201), ctx.json(ex))
+    } catch (e) {
+      return res(ctx.status(400))
+    }
+>>>>>>> 3dd71bc16ad53b976676a283f5be393cace8c33a
   }),
 
   rest.get('/api/v1/routines', (_req, res, ctx) => res(ctx.json(routines.map(routineResponse)))),
