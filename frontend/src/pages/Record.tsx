@@ -7,6 +7,7 @@ import CreateExerciseModal from '../components/CreateExerciseModal'
 import { createCalorieEstimate, createRecord } from '../api/records'
 import type { SetItem } from '../api/records'
 import { listRoutines, Routine } from '../api/routines'
+import { localDateString } from '../utils/date'
 // Spotify integration removed — restored original Record page
 // ExerciseSelect modal removed
 
@@ -17,7 +18,7 @@ export default function Record(): JSX.Element {
   const [autoStartPending, setAutoStartPending] = useState(false)
   
   const [exercises, setExercises] = useState<Exercise[]>([])
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0,10))
+  const [date, setDate] = useState(() => localDateString())
   const [exerciseId, setExerciseId] = useState('')
 
   // for building plan

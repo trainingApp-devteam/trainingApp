@@ -78,7 +78,9 @@ npm ci
 npx playwright install chromium
 npm run e2e
 Pop-Location
-```
+`
+
+8080/5173で開発サーバーが動いている場合は、`E2E_BACKEND_PORT` / `E2E_FRONTEND_PORT`（例: 18090 / 15190）を設定すると、別ポートで独立して実行できます。
 
 ## API仕様の自動検証
 

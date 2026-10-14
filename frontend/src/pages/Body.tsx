@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { BodyMeasurement, createBodyMeasurement, deleteBodyMeasurement, listBodyMeasurements, MeasurementType } from '../api/bodyMeasurements'
+import { localDateString } from '../utils/date'
 
 type Measurement = { id: string; ids: string[]; date: string; height?: number; weight?: number; bodyFat?: number }
 
@@ -17,7 +18,7 @@ function groupMeasurements(values: BodyMeasurement[]): Measurement[] {
 }
 
 export default function Body(): JSX.Element {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0,10))
+  const [date, setDate] = useState(() => localDateString())
   const [height, setHeight] = useState<number|''>('')
   const [weight, setWeight] = useState<number|''>('')
   const [bodyFat, setBodyFat] = useState<number|''>('')
