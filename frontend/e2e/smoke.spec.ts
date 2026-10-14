@@ -16,14 +16,21 @@ async function api(page: Page, method: 'POST' | 'GET', path: string, data?: unkn
 }
 
 test('login, body weight, menu auto-start, calorie estimate, and record editing', async ({ page }) => {
-  await page.goto('/account')
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'ログアウト' })).toHaveCount(0)
+  await page.getByRole('link', { name: 'ログイン' }).click()
+  await expect(page).toHaveURL(/\/account$/)
   await page.getByLabel('ユーザー名').fill(username)
   await page.getByLabel('パスワード').fill(password)
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
   await expect(page).toHaveURL('/')
 
+  const header = page.locator('header')
+  await expect(header.getByText(username)).toBeVisible()
+  await expect(header.getByRole('link', { name: 'ログイン' })).toHaveCount(0)
+
   await page.goto('/account')
-  await expect(page.getByText('ログイン中')).toBeVisible()
+  await expect(page.locator('main').getByText('ログイン中')).toBeVisible()
   await page.getByLabel('体重（kg）').fill('63.5')
   await page.getByRole('button', { name: '保存' }).click()
   await expect(page.getByRole('status')).toHaveText('体重を保存しました')
@@ -51,4 +58,12 @@ test('login, body weight, menu auto-start, calorie estimate, and record editing'
   await page.getByRole('button', { name: '保存' }).click()
   await expect(page.getByText(/12回 × 40kg/)).toBeVisible()
   await expect(page.getByText(/推定 .* kcal/)).toHaveCount(0)
+
+  // header logout returns to the login screen and ends the server session
+  await page.locator('header').getByRole('button', { name: 'ログアウト' }).click()
+  await expect(page).toHaveURL(/\/account$/)
+  await expect(page.locator('header').getByRole('link', { name: 'ログイン' })).toBeVisible()
+  await page.reload()
+  await expect(page.locator('header').getByRole('link', { name: 'ログイン' })).toBeVisible()
+  await expect(page.locator('header').getByText(username)).toHaveCount(0)
 })

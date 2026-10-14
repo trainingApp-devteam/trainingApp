@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Account, getCurrentAccount, logout } from '../api/auth'
+import { onAuthChanged } from '../api/authEvents'
+import { syncAccountProfile } from '../api/accountProfile'
 import { localDateString } from '../utils/date'
 
 export const navItems = [
@@ -13,11 +16,37 @@ export const navItems = [
 export default function Header(): JSX.Element {
   const today = localDateString()
   const [open, setOpen] = useState(false)
+  const [account, setAccount] = useState<Account | null>(null)
+  const [loggingOut, setLoggingOut] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const location = useLocation()
+  const navigate = useNavigate()
 
   useEffect(() => { setOpen(false) }, [location.pathname])
+
+  useEffect(() => {
+    let active = true
+    function refresh() {
+      getCurrentAccount()
+        .then((current) => {
+          if (!active) return
+          syncAccountProfile(current)
+          setAccount(current)
+        })
+        .catch(() => {
+          if (!active) return
+          localStorage.removeItem('trainingapp:authUser')
+          setAccount(null)
+        })
+    }
+    refresh()
+    const unsubscribe = onAuthChanged(refresh)
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -38,13 +67,48 @@ export default function Header(): JSX.Element {
     }
   }, [open])
 
+  async function signOut() {
+    setLoggingOut(true)
+    try {
+      await logout()
+      localStorage.removeItem('trainingapp:authUser')
+      setAccount(null)
+      navigate('/account')
+    } catch {
+      // ログアウトに失敗した場合はログイン状態のまま表示し、再度の操作を可能にする
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
+  const accountName = account ? account.displayName || account.username : ''
+
   return (
     <header className="w-full bg-gray-800 text-white shadow-sm">
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-        <Link to="/" className="text-xl font-bold">TrainingApp</Link>
-        <div className="flex items-center gap-4">
-          <time dateTime={today} className="text-sm text-gray-300">{today}</time>
-          <div ref={containerRef} className="relative">
+      <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        <Link to="/" className="text-xl font-bold shrink-0">TrainingApp</Link>
+        <div className="flex min-w-0 items-center gap-3">
+          <time dateTime={today} className="hidden text-sm text-gray-300 md:block">{today}</time>
+          {account ? (
+            <>
+              <span className="min-w-0 max-w-[9rem] truncate text-sm text-gray-100 sm:max-w-[14rem]" title={`${account.username}${account.role === 'ADMIN' ? '（管理者）' : ''}`}>
+                <span className="sr-only">ログイン中: </span>{accountName}
+              </span>
+              <button
+                type="button"
+                onClick={signOut}
+                disabled={loggingOut}
+                className="shrink-0 rounded bg-red-700 px-3 py-1.5 text-sm hover:bg-red-600 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-300"
+              >
+                ログアウト
+              </button>
+            </>
+          ) : (
+            <Link to="/account" className="shrink-0 rounded bg-indigo-600 px-3 py-1.5 text-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+              ログイン
+            </Link>
+          )}
+          <div ref={containerRef} className="relative shrink-0">
             <button
               ref={buttonRef}
               type="button"

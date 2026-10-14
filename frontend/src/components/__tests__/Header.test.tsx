@@ -1,14 +1,21 @@
 import React from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Header from '../Header'
+import { getCurrentAccount, logout } from '../../api/auth'
+import { notifyAuthChanged } from '../../api/authEvents'
+
+vi.mock('../../api/auth', () => ({ getCurrentAccount: vi.fn(), logout: vi.fn() }))
+
+const member = { id: 2, username: 'taro', displayName: '太郎', role: 'USER' as const, bodyWeightKg: 63.5 }
 
 function renderHeader(initialPath = '/') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
       <Header />
       <Routes>
+        <Route path="/account" element={<div>account page</div>} />
         <Route path="*" element={<div>content</div>} />
       </Routes>
     </MemoryRouter>,
@@ -16,6 +23,11 @@ function renderHeader(initialPath = '/') {
 }
 
 describe('Header hamburger menu', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.mocked(getCurrentAccount).mockReset().mockRejectedValue(new Error('unauthenticated'))
+    vi.mocked(logout).mockReset().mockResolvedValue(undefined)
+  })
   test('shows the local date', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 15, 0, 30))
@@ -93,5 +105,69 @@ describe('Header hamburger menu', () => {
     await user.click(button)
 
     expect(screen.queryByRole('navigation', { name: 'メインメニュー' })).not.toBeInTheDocument()
+  })
+
+  describe('login state', () => {
+    test('shows a login link when nobody is logged in', async () => {
+      renderHeader()
+
+      expect(await screen.findByRole('link', { name: 'ログイン' })).toHaveAttribute('href', '/account')
+      expect(screen.queryByRole('button', { name: 'ログアウト' })).not.toBeInTheDocument()
+    })
+
+    test('shows the account name and a logout button when logged in', async () => {
+      vi.mocked(getCurrentAccount).mockResolvedValue(member)
+      renderHeader()
+
+      expect(await screen.findByText('太郎')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument()
+      expect(JSON.parse(localStorage.getItem('trainingapp:authUser') || 'null')).toEqual({ username: 'taro' })
+    })
+
+    test('falls back to the username when there is no display name', async () => {
+      vi.mocked(getCurrentAccount).mockResolvedValue({ ...member, displayName: '' })
+      renderHeader()
+
+      expect(await screen.findByText('taro')).toBeInTheDocument()
+    })
+
+    test('logs out, returns to the login screen, and clears the cached account', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCurrentAccount).mockResolvedValue(member)
+      renderHeader('/history')
+
+      await user.click(await screen.findByRole('button', { name: 'ログアウト' }))
+
+      expect(logout).toHaveBeenCalledTimes(1)
+      expect(await screen.findByRole('link', { name: 'ログイン' })).toBeInTheDocument()
+      expect(screen.queryByText('太郎')).not.toBeInTheDocument()
+      expect(screen.getByText('account page')).toBeInTheDocument()
+      expect(localStorage.getItem('trainingapp:authUser')).toBeNull()
+    })
+
+    test('stays logged in when logout fails', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCurrentAccount).mockResolvedValue(member)
+      vi.mocked(logout).mockRejectedValue(new Error('network'))
+      renderHeader('/history')
+
+      await user.click(await screen.findByRole('button', { name: 'ログアウト' }))
+
+      expect(await screen.findByText('太郎')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'ログアウト' })).toBeEnabled()
+      expect(screen.queryByText('account page')).not.toBeInTheDocument()
+    })
+
+    test('updates when another screen logs in', async () => {
+      renderHeader()
+      expect(await screen.findByRole('link', { name: 'ログイン' })).toBeInTheDocument()
+
+      vi.mocked(getCurrentAccount).mockResolvedValue(member)
+      await act(async () => { notifyAuthChanged() })
+
+      expect(await screen.findByText('太郎')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument()
+    })
   })
 })

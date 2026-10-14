@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { useNavigate } from 'react-router-dom'
-import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login, logout, updateBodyWeight } from '../api/auth'
+import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login, updateBodyWeight } from '../api/auth'
+import { onAuthChanged } from '../api/authEvents'
 import { getAccountBodyWeight, syncAccountProfile } from '../api/accountProfile'
 
 export default function Account(): JSX.Element {
@@ -17,7 +18,9 @@ export default function Account(): JSX.Element {
   const [bodyWeight, setBodyWeight] = useState('')
 
   useEffect(() => {
-    getCurrentAccount().then(setCurrent).catch(() => setCurrent(null))
+    const refresh = () => getCurrentAccount().then(setCurrent).catch(() => setCurrent(null))
+    refresh()
+    return onAuthChanged(refresh)
   }, [])
 
   useEffect(() => {
@@ -45,17 +48,6 @@ export default function Account(): JSX.Element {
       setPassword('')
     } catch (e) {
       setError(e instanceof Error ? e.message : '登録できませんでした')
-    } finally { setBusy(false) }
-  }
-
-  async function signOut() {
-    setBusy(true); setError(null)
-    try {
-      await logout()
-      setCurrent(null)
-      navigate('/')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'ログアウトできませんでした')
     } finally { setBusy(false) }
   }
 
@@ -131,9 +123,6 @@ export default function Account(): JSX.Element {
                 保存
               </button>
             </form>
-            <div className="mt-4 flex gap-2">
-              <button disabled={busy} onClick={signOut} className="px-3 py-2 rounded bg-red-700 disabled:opacity-50">ログアウト</button>
-            </div>
           </>
         )}
       </div>
