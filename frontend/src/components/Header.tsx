@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { logout } from '../api/auth'
 import { useAuth } from '../auth/AuthContext'
-import { localDateString } from '../utils/date'
 
 export const navItems = [
   { to: '/record', label: '記録' },
@@ -13,7 +12,6 @@ export const navItems = [
 ]
 
 export default function Header(): JSX.Element {
-  const today = localDateString()
   const [open, setOpen] = useState(false)
   const { status, account, clear } = useAuth()
   const [loggingOut, setLoggingOut] = useState(false)
@@ -63,7 +61,6 @@ export default function Header(): JSX.Element {
       <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-3">
         <Link to="/" className="text-xl font-bold shrink-0">TrainingApp</Link>
         <div className="flex min-w-0 items-center gap-3">
-          <time dateTime={today} className="hidden text-sm text-gray-300 md:block">{today}</time>
           {account ? (
             <>
               <span className="min-w-0 max-w-[9rem] truncate text-sm text-gray-100 sm:max-w-[14rem]" title={`${account.username}${account.role === 'ADMIN' ? '（管理者）' : ''}`}>

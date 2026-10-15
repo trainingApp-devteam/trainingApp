@@ -1,12 +1,12 @@
 import React, { useEffect, useState, Suspense } from "react";
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { searchExercises, listExerciseGroups, createExercise } from '../api/exercises'
 import { getAccountBodyWeight, syncAccountProfile } from '../api/accountProfile'
 import { getCurrentAccount } from '../api/auth'
 import CreateExerciseModal from '../components/CreateExerciseModal'
 import { createCalorieEstimate, createRecord } from '../api/records'
 import type { SetItem } from '../api/records'
-import { listRoutines, Routine } from '../api/routines'
+import { listRoutines } from '../api/routines'
 import { localDateString } from '../utils/date'
 // Spotify integration removed — restored original Record page
 // ExerciseSelect modal removed
@@ -40,8 +40,6 @@ export default function Record(): JSX.Element {
   const [group, setGroup] = useState<string>('')
   
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [savedMenus, setSavedMenus] = useState<Routine[]>([])
-  const [selectedMenuId, setSelectedMenuId] = useState('')
 
 
   useEffect(() => {
@@ -87,13 +85,6 @@ export default function Record(): JSX.Element {
     }).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    listRoutines().then((routines) => {
-      setSavedMenus(routines)
-      if (routines.length) setSelectedMenuId(routines[0].id)
-    }).catch(() => setSavedMenus([]))
-  }, [])
-
   // read possible menuId from query to auto-apply
   useEffect(() => {
     try {
@@ -103,7 +94,6 @@ export default function Record(): JSX.Element {
       Promise.all([listRoutines(), searchExercises().catch(() => [] as Exercise[])]).then(([routines, catalog]) => {
       const menu = routines.find((item) => item.id === menuId)
       if (!menu) return
-      setSavedMenus(routines)
       const accountWeight = getAccountBodyWeight()
       const converted: SetItem[] = menu.exercises.map((me) => {
         const chosen = catalog.find((exercise) => exercise.id === me.exerciseId)
@@ -390,19 +380,22 @@ export default function Record(): JSX.Element {
       <h2 className="text-2xl font-semibold mb-4">{inSession ? 'メニュー実行' : 'メニュー作成'}</h2>
 
       {!inSession && (
-        <form
-          className="p-6 bg-white rounded-lg max-w-2xl text-gray-900 shadow-sm"
-          onSubmit={(e) => {
-            e.preventDefault()
-            const canAdd = exerciseId && (setType === 'reps' ? (Number.isInteger(reps) && reps >= 1) : (Number.isInteger(timeSeconds) && timeSeconds >= 1))
-            if (canAdd) addSetToPlan()
-          }}
-        >
-          <label className="block mb-4">
-            <div className="text-sm font-medium mb-1">日付</div>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded px-3 py-2 bg-white text-gray-900 border" />
-          </label>
+        <div className="max-w-2xl space-y-4 text-gray-900">
+          <section aria-labelledby="plan-date-heading" className="p-6 bg-white rounded-lg shadow-sm">
+            <h3 id="plan-date-heading" className="text-lg font-semibold mb-3">日付</h3>
+            <input type="date" aria-label="日付" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded px-3 py-2 bg-white text-gray-900 border" />
+          </section>
 
+          <form
+            aria-labelledby="plan-add-heading"
+            className="p-6 bg-white rounded-lg shadow-sm"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const canAdd = exerciseId && (setType === 'reps' ? (Number.isInteger(reps) && reps >= 1) : (Number.isInteger(timeSeconds) && timeSeconds >= 1))
+              if (canAdd) addSetToPlan()
+            }}
+          >
+            <h3 id="plan-add-heading" className="text-lg font-semibold mb-3">種目を選んでセットを追加</h3>
           <label className="block mb-4">
             <div className="text-sm font-medium mb-1">種目</div>
               <div className="flex gap-2 mb-2">
@@ -416,28 +409,6 @@ export default function Record(): JSX.Element {
                     <option key={ex.id} value={ex.id}>{ex.name}</option>
                   ))}
                 </select>
-                </div>
-                <div className="flex gap-2 mt-3 items-center">
-                  <select value={selectedMenuId} onChange={(e)=>setSelectedMenuId(e.target.value)} className="rounded px-3 py-2 bg-white text-gray-900 border">
-                    <option value="">-- 保存メニューから選択 --</option>
-                    {savedMenus.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <button type="button" onClick={() => {
-                    if (!selectedMenuId) return
-                    const menu = savedMenus.find(m=>m.id===selectedMenuId)
-                    if (!menu) return
-                    // convert menu.exercises to SetItem and setPlanSets
-                    const converted: SetItem[] = menu.exercises.map((me:any) => {
-                      const s: any = { type: me.type }
-                      s.exerciseId = me.exerciseId
-                      s.exerciseName = me.exerciseName
-                      if (me.type === 'reps') s.reps = me.reps
-                      else s.timeSeconds = me.timeSeconds
-                      if (me.weight !== undefined) s.weight = me.weight
-                      return s as SetItem
-                    })
-                    setPlanSets(converted)
-                  }} className="px-3 py-1 rounded bg-indigo-600 text-white">メニューを適用</button>
                 </div>
                 {/* 独自種目作成ボタンは一時的に非表示 */}
                 {/* <div className="flex gap-2 mt-2">
@@ -497,12 +468,6 @@ export default function Record(): JSX.Element {
               </span>
             </label>
 
-            <div className="mb-3 text-sm text-gray-700">
-              推定用体重: {bodyWeightKg === null ? (
-                <Link to="/account" className="font-medium text-blue-700 underline">未登録（アカウントで登録）</Link>
-              ) : `${bodyWeightKg} kg（アカウント登録値）`}
-            </div>
-
             <div className="flex gap-2">
               {(() => {
                 const canAdd = exerciseId && (setType === 'reps' ? (Number.isInteger(reps) && reps >= 1) : (Number.isInteger(timeSeconds) && timeSeconds >= 1))
@@ -522,8 +487,10 @@ export default function Record(): JSX.Element {
           </div>
           
 
-          <div className="mb-4">
-            <div className="font-medium mb-2">作成中のセット</div>
+          </form>
+
+          <section aria-labelledby="plan-sets-heading" className="p-6 bg-white rounded-lg shadow-sm">
+            <h3 id="plan-sets-heading" className="text-lg font-semibold mb-3">作成中のセット</h3>
             {planSets.length === 0 && <div className="text-sm text-gray-500">まだセットがありません</div>}
             {planSets.length > 0 && (
               <div className="overflow-x-auto bg-white rounded shadow-sm">
@@ -563,17 +530,19 @@ export default function Record(): JSX.Element {
                 </table>
               </div>
             )}
-          </div>
+          </section>
 
-          {error && (
-            <div className="text-red-400 mb-3">{error}</div>
-          )}
-
-          <div className="flex gap-3">
+          <section aria-labelledby="plan-run-heading" className="p-6 bg-white rounded-lg shadow-sm">
+            <h3 id="plan-run-heading" className="text-lg font-semibold mb-3">実行</h3>
+            {error && (
+              <div role="alert" className="text-red-600 mb-3">{error}</div>
+            )}
+            <div className="flex gap-3">
             <button type="button" onClick={startSession} className="px-4 py-2 rounded bg-green-600 text-white">実行開始</button>
             <button type="button" onClick={() => { setPlanSets([]); setError(null) }} className="px-4 py-2 rounded bg-gray-700 text-white">リセット</button>
-          </div>
-        </form>
+            </div>
+          </section>
+        </div>
       )}
       {/* Create exercise modal */}
       {showCreateModal && (

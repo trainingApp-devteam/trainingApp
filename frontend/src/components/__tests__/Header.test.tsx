@@ -31,15 +31,9 @@ describe('Header hamburger menu', () => {
     vi.mocked(getCurrentAccount).mockReset().mockRejectedValue(new Error('unauthenticated'))
     vi.mocked(logout).mockReset().mockResolvedValue(undefined)
   })
-  test('shows the local date', () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date(2026, 9, 15, 0, 30))
-    try {
-      renderHeader()
-      expect(screen.getByText('2026-10-15')).toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
+  test('does not show the current date', () => {
+    renderHeader()
+    expect(document.querySelector('time')).toBeNull()
   })
 
   test('keeps the page links hidden until the menu button is pressed', async () => {

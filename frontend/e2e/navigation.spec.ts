@@ -51,7 +51,7 @@ test('hamburger menu replaces header nav and quick links', async ({ page }) => {
   await page.getByRole('button', { name: 'メニュー' }).click()
   const nav = page.getByRole('navigation', { name: 'メインメニュー' })
   await expect(nav.getByRole('link')).toHaveText(['記録', '履歴', 'メニュー', '身体測定', 'アカウント'])
-  await expect(page.locator('time')).toHaveCount(1)
+  await expect(page.locator('time')).toHaveCount(0)
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'test-results/hamburger-open.png' })
 
@@ -64,4 +64,20 @@ test('hamburger menu replaces header nav and quick links', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'アカウント' })).toBeVisible()
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'test-results/hamburger-mobile.png' })
+})
+
+test('record screen is split into date, set entry, set list, and run sections', async ({ page }) => {
+  await loginThroughForm(page)
+  await page.goto('/record')
+
+  await expect(page.getByRole('heading', { name: 'メニュー作成' })).toBeVisible()
+  for (const name of ['日付', '種目を選んでセットを追加', '作成中のセット', '実行']) {
+    await expect(page.getByRole('heading', { name })).toBeVisible()
+  }
+  await expect(page.getByText('推定用体重')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'メニューを適用' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'セットを追加' }).click()
+  await expect(page.getByRole('region', { name: '作成中のセット' }).getByRole('row')).toHaveCount(2)
+  await page.screenshot({ path: 'test-results/record-sections.png', fullPage: true })
 })
