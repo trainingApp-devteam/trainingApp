@@ -31,10 +31,16 @@ test('login, body weight, menu auto-start, calorie estimate, and record editing'
 
   await page.goto('/account')
   await expect(page.locator('main').getByText('ログイン中')).toBeVisible()
-  await page.getByLabel('体重（kg）').fill('63.5')
-  await page.getByRole('button', { name: '保存' }).click()
-  await expect(page.getByRole('status')).toHaveText('体重を保存しました')
+  await expect(page.getByLabel('体重（kg）')).toHaveCount(0)
 
+  // 体重は身体測定で登録し、ホームの上部に測定日時付きで表示される。カロリー推定にもこの体重を使う
+  await page.goto('/body')
+  await page.getByLabel('体重(kg)').fill('63.5')
+  await page.getByRole('button', { name: '保存' }).click()
+  await expect(page.getByRole('status')).toHaveText('保存しました')
+  await page.goto('/')
+  await expect(page.getByTestId('body-weight_kg')).toContainText('63.5')
+  await expect(page.getByTestId('body-weight_kg')).toContainText('測定日時')
   const [bench] = await api(page, 'GET', '/exercises?q=' + encodeURIComponent('ベンチプレス'))
   await api(page, 'POST', '/routines', {
     name: 'E2Eメニュー',

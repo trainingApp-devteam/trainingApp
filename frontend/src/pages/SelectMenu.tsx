@@ -17,11 +17,11 @@ export default function SelectMenu(): JSX.Element {
         <h2 className="text-xl font-semibold mb-4">保存済メニューを選択</h2>
         {error && <div role="alert" className="text-red-400">{error}</div>}
         {savedMenus.length === 0 && (
-          <div className="p-4 bg-white/3 rounded">保存されたメニューがありません。</div>
+          <div className="p-4 bg-black/20 rounded">保存されたメニューがありません。</div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           {savedMenus.map((m) => (
-            <div key={m.id} className="p-4 bg-white/3 rounded flex items-center justify-between">
+            <div key={m.id} className="p-4 bg-black/20 rounded flex items-center justify-between">
               <div>{m.name}</div>
                 <div className="flex gap-2">
                 <button onClick={() => navigate(`/record?menuId=${encodeURIComponent(m.id)}&autoStart=1`)} className="px-3 py-1 rounded bg-indigo-600 text-white">選択して記録へ</button>

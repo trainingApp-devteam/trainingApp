@@ -2,6 +2,7 @@ import React from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Record from '../Record'
+import { getLatestBodyWeight } from '../../api/bodyMeasurements'
 import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('../../api/exercises', () => {
@@ -15,10 +16,12 @@ vi.mock('../../api/exercises', () => {
 })
 
 vi.mock('../../api/records', () => ({ createRecord: vi.fn(async () => ({ id: 'r1' })) }))
+vi.mock('../../api/bodyMeasurements', () => ({ getLatestBodyWeight: vi.fn(async () => null) }))
 
 describe('Record page', () => {
   beforeEach(() => {
     localStorage.clear()
+    vi.mocked(getLatestBodyWeight).mockReset().mockResolvedValue(null)
   })
 
   test('renders selects and can open create modal', async () => {
@@ -39,8 +42,7 @@ describe('Record page', () => {
   })
 
   test('provides RPE guidance without showing the estimation body weight', async () => {
-    localStorage.setItem('trainingapp:authUser', JSON.stringify({ username: 'test-user' }))
-    localStorage.setItem('trainingApp.accountProfile:test-user', JSON.stringify({ bodyWeightKg: 63.5 }))
+    vi.mocked(getLatestBodyWeight).mockResolvedValue(63.5)
     render(<MemoryRouter><Record /></MemoryRouter>)
 
     expect(await screen.findByRole('button', { name: 'RPEの目安' })).toHaveAttribute('aria-describedby', 'rpe-help')
@@ -66,6 +68,23 @@ describe('Record page', () => {
     // each control lives in exactly one section
     expect(within(add).queryByRole('button', { name: '実行開始' })).not.toBeInTheDocument()
     expect(within(sets).queryByRole('button', { name: 'セットを追加' })).not.toBeInTheDocument()
+  })
+
+  test('asks for a body measurement when a calorie-capable exercise is added without a registered weight', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getLatestBodyWeight).mockResolvedValue(null)
+    const exercises = await import('../../api/exercises')
+    vi.mocked(exercises.searchExercises).mockImplementation((async () => [{ id: 'e2', name: 'ベンチプレス', group: '胸', isBuiltin: true, calorieEnabled: true }]) as any)
+    try {
+      render(<MemoryRouter><Record /></MemoryRouter>)
+      await screen.findByRole('option', { name: 'ベンチプレス' })
+
+      await user.click(screen.getByRole('button', { name: 'セットを追加' }))
+
+      expect(await screen.findByText('消費カロリーを推定するには、身体測定で体重を登録してください')).toBeInTheDocument()
+    } finally {
+      vi.mocked(exercises.searchExercises).mockImplementation((async (_q = '', category?: string) => [{ id: 'e1', name: '既存種目', group: category || 'その他' }]) as any)
+    }
   })
 
   test('has no way to apply a saved menu on this screen', async () => {

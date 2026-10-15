@@ -9,7 +9,7 @@ import { notifyAuthChanged } from '../../api/authEvents'
 
 vi.mock('../../api/auth', () => ({ getCurrentAccount: vi.fn(), logout: vi.fn() }))
 
-const member = { id: 2, username: 'taro', displayName: '太郎', role: 'USER' as const, bodyWeightKg: 63.5 }
+const member = { id: 2, username: 'taro', displayName: '太郎', role: 'USER' as const }
 
 function renderHeader(initialPath = '/') {
   return render(
@@ -127,7 +127,6 @@ describe('Header hamburger menu', () => {
       expect(await screen.findByText('太郎')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument()
       expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument()
-      expect(JSON.parse(localStorage.getItem('trainingapp:authUser') || 'null')).toEqual({ username: 'taro' })
     })
 
     test('falls back to the username when there is no display name', async () => {
@@ -137,7 +136,7 @@ describe('Header hamburger menu', () => {
       expect(await screen.findByText('taro')).toBeInTheDocument()
     })
 
-    test('logs out, returns to the login screen (which has its own login form), and clears the cached account', async () => {
+    test('logs out and returns to the login screen (which has its own login form)', async () => {
       const user = userEvent.setup()
       vi.mocked(getCurrentAccount).mockResolvedValue(member)
       renderHeader('/history')
@@ -148,7 +147,6 @@ describe('Header hamburger menu', () => {
       expect(await screen.findByText('account page')).toBeInTheDocument()
       expect(screen.queryByText('太郎')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'ログアウト' })).not.toBeInTheDocument()
-      expect(localStorage.getItem('trainingapp:authUser')).toBeNull()
     })
 
     test('stays logged in when logout fails', async () => {

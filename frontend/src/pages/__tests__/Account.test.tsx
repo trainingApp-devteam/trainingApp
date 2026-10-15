@@ -1,15 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import Account from '../Account'
-import { getAccountBodyWeight, saveAccountBodyWeight } from '../../api/accountProfile'
-import { acceptInvitation, getCurrentAccount, login, updateBodyWeight } from '../../api/auth'
+import { acceptInvitation, getCurrentAccount, login } from '../../api/auth'
 
 vi.mock('../../api/auth', () => ({
   getCurrentAccount: vi.fn(),
   login: vi.fn(),
   acceptInvitation: vi.fn(),
-  updateBodyWeight: vi.fn(),
 }))
 
 const member = { id: 2, username: 'taro', displayName: '太郎', role: 'USER' as const }
@@ -120,56 +118,23 @@ describe('Account screen when logged out', () => {
 
 describe('Account screen when logged in', () => {
   beforeEach(() => {
-    localStorage.clear()
     vi.mocked(getCurrentAccount).mockReset().mockResolvedValue(member)
   })
 
-  test('shows the profile without login or logout controls (logout lives in the header)', async () => {
+  test('shows who is logged in, without login, logout, or body weight controls', async () => {
     renderAccount()
 
-    expect(await screen.findByLabelText('体重（kg）')).toBeInTheDocument()
+    expect(await screen.findByText('太郎')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /ログイン/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'ログアウト' })).not.toBeInTheDocument()
-  })
-})
-
-describe('Account profile storage', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    vi.mocked(getCurrentAccount).mockReset().mockResolvedValue(member)
-    vi.mocked(updateBodyWeight).mockReset().mockImplementation(async (bodyWeightKg: number) => ({ ...member, bodyWeightKg }))
+    expect(screen.queryByLabelText('体重（kg）')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '保存' })).not.toBeInTheDocument()
   })
 
-  test('saves the account body weight for calorie estimates', async () => {
-    const user = userEvent.setup()
+  test('points to the body measurements for the weight used in calorie estimates', async () => {
     renderAccount()
 
-    await user.type(await screen.findByLabelText('体重（kg）'), '63.5')
-    await user.click(screen.getByRole('button', { name: '保存' }))
-
-    expect(updateBodyWeight).toHaveBeenCalledWith(63.5)
-    expect(await screen.findByRole('status')).toHaveTextContent('体重を保存しました')
-    expect(localStorage.getItem('trainingApp.accountProfile:taro')).toBe('{"bodyWeightKg":63.5}')
-  })
-
-  test('rejects an out-of-range body weight without calling the server', async () => {
-    const user = userEvent.setup()
-    renderAccount()
-
-    const input = await screen.findByLabelText('体重（kg）')
-    await user.type(input, '10')
-    // ブラウザー標準の範囲検証をすり抜けた場合でも、アプリ側で拒否する
-    fireEvent.submit(input.closest('form') as HTMLFormElement)
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('20〜300kg')
-    expect(updateBodyWeight).not.toHaveBeenCalled()
-  })
-
-  test('keeps body weights separate between accounts', () => {
-    saveAccountBodyWeight(63.5, 'first-user')
-    saveAccountBodyWeight(81, 'second-user')
-
-    expect(getAccountBodyWeight('first-user')).toBe(63.5)
-    expect(getAccountBodyWeight('second-user')).toBe(81)
+    const link = await screen.findByRole('link', { name: '身体測定' })
+    expect(link).toHaveAttribute('href', '/body')
   })
 })

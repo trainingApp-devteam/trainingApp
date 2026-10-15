@@ -129,7 +129,7 @@ export default function HistoryDetail(): JSX.Element {
                 <input type="number" min={0} step={0.5} aria-label={`セット${i + 1}の重量(kg)`} value={s.weight ?? ''} onChange={(e) => changeWeight(i, e.target.value)} className="w-24 px-2 py-1 rounded bg-gray-800/60" />
                 <span>kg</span>
                 <button type="button" onClick={() => copySet(i)} className="px-2 py-1 rounded bg-gray-600">コピー</button>
-                <button type="button" onClick={() => removeSet(i)} className="px-2 py-1 rounded bg-red-600">削除</button>
+                <button type="button" onClick={() => removeSet(i)} className="px-2 py-1 rounded bg-red-700">削除</button>
               </li>
             ))}
           </ul>

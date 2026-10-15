@@ -1,7 +1,7 @@
 import { apiRequest } from './client'
 import { notifyAuthChanged } from './authEvents'
 
-export type Account = { id: number; username: string; displayName: string; role: 'USER' | 'ADMIN'; bodyWeightKg?: number | null }
+export type Account = { id: number; username: string; displayName: string; role: 'USER' | 'ADMIN' }
 
 export function getCurrentAccount(): Promise<Account> {
   return apiRequest<Account>('/auth/me')
@@ -20,8 +20,4 @@ export async function logout(): Promise<void> {
 
 export function acceptInvitation(input: { token: string; username: string; displayName: string; password: string }): Promise<{ status: string }> {
   return apiRequest<{ status: string }>('/invitations/accept', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function updateBodyWeight(bodyWeightKg: number): Promise<Account> {
-  return apiRequest<Account>('/auth/me/profile', { method: 'PUT', body: JSON.stringify({ bodyWeightKg }) })
 }

@@ -22,7 +22,7 @@ let sessions: Array<Record<string, any>> = []
 let measurements: Array<Record<string, any>> = []
 let routines: Array<Record<string, any>> = []
 let nextId = 1
-let account: Record<string, any> = { id: 1, username: 'demo', displayName: 'デモユーザー', role: 'USER', bodyWeightKg: null }
+let account: Record<string, any> = { id: 1, username: 'demo', displayName: 'デモユーザー', role: 'USER' }
 
 function sessionResponse(session: Record<string, any>) {
   return {
@@ -56,11 +56,6 @@ export const handlers = [
   rest.post('/api/v1/auth/login', async (req, res, ctx) => {
     const body = await req.json()
     account = { ...account, username: body.username, displayName: body.username }
-    return res(ctx.json(account))
-  }),
-  rest.put('/api/v1/auth/me/profile', async (req, res, ctx) => {
-    const body = await req.json()
-    account = { ...account, bodyWeightKg: body.bodyWeightKg }
     return res(ctx.json(account))
   }),
   rest.post('/api/v1/auth/logout', (_req, res, ctx) => res(ctx.status(204))),

@@ -70,13 +70,13 @@ export default function Header(): JSX.Element {
                 type="button"
                 onClick={signOut}
                 disabled={loggingOut}
-                className="shrink-0 rounded bg-red-700 px-3 py-1.5 text-sm hover:bg-red-600 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-300"
+                className="shrink-0 rounded bg-red-700 px-3 py-1.5 text-sm hover:bg-red-800 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-300"
               >
                 ログアウト
               </button>
             </>
           ) : status === 'anonymous' && location.pathname !== '/account' ? (
-            <Link to="/account" className="shrink-0 rounded bg-indigo-600 px-3 py-1.5 text-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            <Link to="/account" className="shrink-0 rounded bg-indigo-600 px-3 py-1.5 text-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300">
               ログイン
             </Link>
           ) : null}

@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Account, getCurrentAccount } from '../api/auth'
 import { onAuthChanged } from '../api/authEvents'
-import { syncAccountProfile } from '../api/accountProfile'
 
 export type AuthStatus = 'loading' | 'authenticated' | 'anonymous'
 
@@ -19,7 +18,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
   const [account, setAccount] = useState<Account | null>(null)
 
   const clear = useCallback(() => {
-    localStorage.removeItem('trainingapp:authUser')
     setAccount(null)
     setStatus('anonymous')
   }, [])
@@ -29,11 +27,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
     function apply(current: Account | null) {
       if (!active) return
       if (current) {
-        syncAccountProfile(current)
         setAccount(current)
         setStatus('authenticated')
       } else {
-        localStorage.removeItem('trainingapp:authUser')
         setAccount(null)
         setStatus('anonymous')
       }

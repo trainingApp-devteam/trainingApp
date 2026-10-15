@@ -157,14 +157,14 @@ export default function Menu(): JSX.Element {
                     <div className="flex gap-2">
                       <button type="button" onClick={() => setExercises((s)=>{ const a=[...s]; if (idx===0) return a; [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; return a })} className="px-2 py-1 bg-gray-700 rounded">↑</button>
                       <button type="button" onClick={() => setExercises((s)=>{ const a=[...s]; if (idx===a.length-1) return a; [a[idx+1], a[idx]] = [a[idx], a[idx+1]]; return a })} className="px-2 py-1 bg-gray-700 rounded">↓</button>
-                      <button type="button" onClick={() => setExercises((s)=>s.filter((_,i)=>i!==idx))} className="px-2 py-1 bg-red-600 rounded text-white">削除</button>
+                      <button type="button" onClick={() => setExercises((s)=>s.filter((_,i)=>i!==idx))} className="px-2 py-1 bg-red-700 rounded text-white">削除</button>
                     </div>
                   </li>
                 ))}
               </ul>
             )}
             <div className="mt-3 flex gap-2">
-              <button onClick={handleSave} className="px-3 py-1 rounded bg-green-600">保存</button>
+              <button onClick={handleSave} className="px-3 py-1 rounded bg-green-700">保存</button>
               <button onClick={() => { setEditing(null); setName(''); setExercises([]); setIsCreating(false) }} className="px-3 py-1 rounded bg-gray-700">キャンセル</button>
             </div>
           </div>
@@ -178,8 +178,8 @@ export default function Menu(): JSX.Element {
                 <div className="text-sm text-gray-300">{it.exercises.length === 0 ? '種目なし' : it.exercises.map(e => `${e.exerciseName||e.exerciseId}(${e.type==='reps'? `${e.reps}回` : `${e.timeSeconds}秒`}${e.weight? `/${e.weight}kg` : ''})`).join(' , ')}</div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => startEdit(it)} className="px-3 py-1 rounded bg-yellow-600">編集</button>
-                <button onClick={() => handleDelete(it.id)} className="px-3 py-1 rounded bg-red-600">削除</button>
+                <button onClick={() => startEdit(it)} className="px-3 py-1 rounded bg-yellow-500 text-gray-900">編集</button>
+                <button onClick={() => handleDelete(it.id)} className="px-3 py-1 rounded bg-red-700">削除</button>
               </div>
             </li>
           ))}

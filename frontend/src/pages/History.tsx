@@ -80,7 +80,7 @@ export default function History(): JSX.Element {
                       </div>
                       <div className="flex gap-2">
                         <Link to={`/history/${it.id}`} className="px-3 py-1 rounded bg-blue-600">詳細</Link>
-                        <button onClick={() => handleDelete(it.id)} className="px-3 py-1 rounded bg-red-600">削除</button>
+                        <button onClick={() => handleDelete(it.id)} className="px-3 py-1 rounded bg-red-700">削除</button>
                       </div>
                     </li>
                   ))}

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react"
-import { useLocation, useNavigate } from 'react-router-dom'
-import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login, updateBodyWeight } from '../api/auth'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login } from '../api/auth'
 import { onAuthChanged } from '../api/authEvents'
-import { getAccountBodyWeight, syncAccountProfile } from '../api/accountProfile'
+import { ui } from '../styles/ui'
 
 export default function Account(): JSX.Element {
   const navigate = useNavigate()
@@ -17,20 +17,12 @@ export default function Account(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [bodyWeight, setBodyWeight] = useState('')
 
   useEffect(() => {
     const refresh = () => getCurrentAccount().then(setCurrent).catch(() => setCurrent(null))
     refresh()
     return onAuthChanged(refresh)
   }, [])
-
-  useEffect(() => {
-    if (current) syncAccountProfile(current)
-    else localStorage.removeItem('trainingapp:authUser')
-    const savedWeight = current ? getAccountBodyWeight(current.username) : null
-    setBodyWeight(savedWeight === null ? '' : String(savedWeight))
-  }, [current?.username])
 
   async function submitLogin() {
     setBusy(true); setError(null); setMessage(null)
@@ -59,33 +51,12 @@ export default function Account(): JSX.Element {
     } finally { setBusy(false) }
   }
 
-  async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const value = Number(bodyWeight)
-    if (!current || bodyWeight === '' || !Number.isFinite(value) || value < 20 || value > 300) {
-      setError('体重は20〜300kgの範囲で入力してください')
-      setMessage(null)
-      return
-    }
-
-    try {
-      const updated = await updateBodyWeight(value)
-      syncAccountProfile(updated)
-      setCurrent(updated)
-      setError(null)
-      setMessage('体重を保存しました')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '体重を保存できませんでした')
-      setMessage(null)
-    }
-  }
-
   return (
     <div className="container mx-auto px-4 py-10">
       <h2 className="text-2xl font-semibold mb-4">アカウント</h2>
-      <div className="p-6 bg-white/5 rounded-lg max-w-md">
-        {error && <div role="alert" className="mb-3 text-red-400">{error}</div>}
-        {message && <div role="status" className="mb-3 text-green-400">{message}</div>}
+      <div className={`max-w-md ${ui.card}`}>
+        {error && <div role="alert" className={`mb-3 ${ui.error}`}>{error}</div>}
+        {message && <div role="status" className={`mb-3 ${ui.success}`}>{message}</div>}
         {!current && (
           <form
             onSubmit={(event) => {
@@ -94,26 +65,26 @@ export default function Account(): JSX.Element {
               else submitRegistration()
             }}
           >
-            <h3 className="mb-4 text-lg font-semibold">{mode === 'login' ? 'ログイン' : '新規登録'}</h3>
-            {mode === 'login' && returnTo && !message && <p className="mb-3 text-sm text-gray-300">この画面を利用するにはログインが必要です。</p>}
+            <h3 className={ui.cardTitle}>{mode === 'login' ? 'ログイン' : '新規登録'}</h3>
+            {mode === 'login' && returnTo && !message && <p className={`mb-3 ${ui.muted}`}>この画面を利用するにはログインが必要です。</p>}
             {mode === 'register' && <>
-              <div className="mb-3"><label htmlFor="account-invitation" className="block text-sm">招待コード</label>
-                <input id="account-invitation" value={invitationToken} onChange={e => setInvitationToken(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
-              <div className="mb-3"><label htmlFor="account-display-name" className="block text-sm">表示名</label>
-                <input id="account-display-name" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
+              <div className="mb-3"><label htmlFor="account-invitation" className={ui.label}>招待コード</label>
+                <input id="account-invitation" value={invitationToken} onChange={e => setInvitationToken(e.target.value)} className={ui.input} /></div>
+              <div className="mb-3"><label htmlFor="account-display-name" className={ui.label}>表示名</label>
+                <input id="account-display-name" value={displayName} onChange={e => setDisplayName(e.target.value)} className={ui.input} /></div>
             </>}
-            <div className="mb-3"><label htmlFor="account-username" className="block text-sm">ユーザー名</label>
-              <input id="account-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
-            <div className="mb-4"><label htmlFor="account-password" className="block text-sm">パスワード</label>
-              <input id="account-password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
-            <button type="submit" disabled={busy} className="w-full px-3 py-2 rounded bg-green-700 disabled:opacity-50">
+            <div className="mb-3"><label htmlFor="account-username" className={ui.label}>ユーザー名</label>
+              <input id="account-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} className={ui.input} /></div>
+            <div className="mb-4"><label htmlFor="account-password" className={ui.label}>パスワード</label>
+              <input id="account-password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={e => setPassword(e.target.value)} className={ui.input} /></div>
+            <button type="submit" disabled={busy} className={`w-full ${ui.btnSuccess}`}>
               {busy ? '処理中...' : mode === 'login' ? 'ログイン' : '登録申請'}
             </button>
-            <p className="mt-4 text-sm text-gray-300">
+            <p className={`mt-4 ${ui.muted}`}>
               {mode === 'login' ? (
-                <>アカウントをお持ちでない方は <button type="button" onClick={() => switchMode('register')} className="underline text-indigo-300 hover:text-indigo-200">新規登録</button></>
+                <>アカウントをお持ちでない方は <button type="button" onClick={() => switchMode('register')} className={ui.link}>新規登録</button></>
               ) : (
-                <>登録済みの方は <button type="button" onClick={() => switchMode('login')} className="underline text-indigo-300 hover:text-indigo-200">ログインへ戻る</button></>
+                <>登録済みの方は <button type="button" onClick={() => switchMode('login')} className={ui.link}>ログインへ戻る</button></>
               )}
             </p>
           </form>
@@ -121,27 +92,10 @@ export default function Account(): JSX.Element {
 
         {current && (
           <>
-            <div className="mb-3">ログイン中: <strong>{current.displayName || current.username}</strong>（{current.role}）</div>
-            <form onSubmit={saveProfile} className="mt-4 max-w-xl space-y-4 rounded-lg bg-white p-6 text-gray-900 shadow-sm">
-              <h3 className="text-lg font-semibold">プロフィール</h3>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium">体重（kg）</span>
-                <input
-                  type="number"
-                  min={20}
-                  max={300}
-                  step={0.1}
-                  value={bodyWeight}
-                  onChange={(event) => setBodyWeight(event.target.value)}
-                  required
-                  className="w-40 rounded border px-3 py-2"
-                />
-              </label>
-              <p className="text-sm text-gray-600">トレーニングの消費カロリー推定に使用します。</p>
-              <button type="submit" className="rounded bg-gray-900 px-4 py-2 font-medium text-white hover:bg-gray-700">
-                保存
-              </button>
-            </form>
+            <div className="mb-3 text-gray-100">ログイン中: <strong>{current.displayName || current.username}</strong>（{current.role}）</div>
+            <p className={ui.muted}>
+              カロリー推定に使う体重は、<Link to="/body" className={ui.link}>身体測定</Link>で登録した最新の体重です。
+            </p>
           </>
         )}
       </div>

@@ -1,4 +1,5 @@
 import React from 'react'
+import { ui } from '../styles/ui'
 
 type Props = {
   label: string
@@ -9,7 +10,7 @@ type Props = {
 export const FormField: React.FC<Props> = ({ label, children, className = '' }) => {
   return (
     <label className={`block mb-4 ${className}`}>
-      <div className="text-sm font-medium mb-1">{label}</div>
+      <div className={ui.label}>{label}</div>
       <div>{children}</div>
     </label>
   )

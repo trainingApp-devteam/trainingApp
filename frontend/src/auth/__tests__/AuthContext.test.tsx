@@ -6,7 +6,7 @@ import { notifyAuthChanged } from '../../api/authEvents'
 
 vi.mock('../../api/auth', () => ({ getCurrentAccount: vi.fn() }))
 
-const member = { id: 1, username: 'taro', displayName: '太郎', role: 'USER' as const, bodyWeightKg: 63.5 }
+const member = { id: 1, username: 'taro', displayName: '太郎', role: 'USER' as const }
 
 function Probe() {
   const { status, account } = useAuth()
@@ -29,7 +29,6 @@ describe('AuthProvider', () => {
 
     expect(screen.getByText('loading:-')).toBeInTheDocument()
     expect(await screen.findByText('authenticated:taro')).toBeInTheDocument()
-    expect(localStorage.getItem('trainingApp.accountProfile:taro')).toBe('{"bodyWeightKg":63.5}')
   })
 
   test('becomes anonymous when there is no session', async () => {
@@ -37,7 +36,6 @@ describe('AuthProvider', () => {
     renderProbe()
 
     expect(await screen.findByText('anonymous:-')).toBeInTheDocument()
-    expect(localStorage.getItem('trainingapp:authUser')).toBeNull()
   })
 
   test('applies a login immediately, without waiting for another server round trip', async () => {
@@ -60,7 +58,6 @@ describe('AuthProvider', () => {
     act(() => { notifyAuthChanged(null) })
 
     expect(screen.getByText('anonymous:-')).toBeInTheDocument()
-    expect(localStorage.getItem('trainingapp:authUser')).toBeNull()
   })
 
   test('re-checks the server when notified without an account', async () => {

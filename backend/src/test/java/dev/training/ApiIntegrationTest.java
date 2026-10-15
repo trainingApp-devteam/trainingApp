@@ -438,31 +438,20 @@ class ApiIntegrationTest {
     }
 
     @Test
-    void storesBodyWeightInAccountProfile() throws Exception {
+    void accountResponseHasNoProfileWeightAndTheProfileEndpointIsGone() throws Exception {
         MockHttpSession session = login(owner);
 
         mockMvc.perform(get("/api/v1/auth/me").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").exists())
-                .andExpect(jsonPath("$.bodyWeightKg").isEmpty());
+                .andExpect(jsonPath("$.bodyWeightKg").doesNotExist());
 
         mockMvc.perform(put("/api/v1/auth/me/profile")
                         .session(session)
                         .with(csrf())
                         .contentType("application/json")
                         .content("{\"bodyWeightKg\":63.5}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bodyWeightKg").value(63.5));
-
-        mockMvc.perform(get("/api/v1/auth/me").session(session))
-                .andExpect(jsonPath("$.bodyWeightKg").value(63.5));
-
-        mockMvc.perform(put("/api/v1/auth/me/profile")
-                        .session(session)
-                        .with(csrf())
-                        .contentType("application/json")
-                        .content("{\"bodyWeightKg\":10}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isNotFound());
     }
 
     @Test

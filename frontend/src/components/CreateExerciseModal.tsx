@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { createExercise } from '../api/exercises'
+import { ui } from '../styles/ui'
 
 type Props = {
   isOpen: boolean
@@ -31,25 +32,25 @@ export default function CreateExerciseModal({ isOpen, onClose, onCreated }: Prop
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
-      <div className="bg-white rounded shadow-lg w-full max-w-md mx-4">
-        <div className="p-4 border-b flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-label="独自種目を作成">
+      <div className="w-full max-w-md mx-4 rounded-2xl bg-gray-800 text-gray-100 shadow-xl ring-1 ring-white/10">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between">
           <div className="text-lg font-medium">独自種目を作成</div>
-          <button onClick={onClose} className="text-sm text-gray-600">閉じる</button>
+          <button onClick={onClose} className="text-sm text-gray-200 underline hover:text-white">閉じる</button>
         </div>
         <div className="p-4">
           <label className="block mb-3">
-            <div className="text-sm text-gray-600 mb-1">種目名</div>
-            <input value={name} onChange={(e)=>setName(e.target.value)} className="w-full rounded px-3 py-2 border bg-white text-gray-900" />
+            <div className={ui.label}>種目名</div>
+            <input value={name} onChange={(e)=>setName(e.target.value)} className={ui.input} />
           </label>
           <label className="block mb-3">
-            <div className="text-sm text-gray-600 mb-1">部位（任意）</div>
-            <input value={group} onChange={(e)=>setGroup(e.target.value)} className="w-full rounded px-3 py-2 border bg-white text-gray-900" />
+            <div className={ui.label}>部位（任意）</div>
+            <input value={group} onChange={(e)=>setGroup(e.target.value)} className={ui.input} />
           </label>
-          {error && <div className="text-sm text-red-500 mb-2">{error}</div>}
+          {error && <div className={`text-sm mb-2 ${ui.error}`}>{error}</div>}
           <div className="flex justify-end gap-2">
-            <button onClick={onClose} className="px-3 py-1 rounded bg-gray-200">キャンセル</button>
-            <button onClick={handleCreate} disabled={loading} className="px-3 py-1 rounded bg-blue-600 text-white">{loading ? '作成中...' : '作成'}</button>
+            <button onClick={onClose} className={`${ui.btnSecondary} ${ui.btnSmall}`}>キャンセル</button>
+            <button onClick={handleCreate} disabled={loading} className={`${ui.btnPrimary} ${ui.btnSmall}`}>{loading ? '作成中...' : '作成'}</button>
           </div>
         </div>
       </div>
