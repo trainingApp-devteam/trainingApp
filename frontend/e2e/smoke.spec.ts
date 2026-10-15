@@ -18,7 +18,7 @@ async function api(page: Page, method: 'POST' | 'GET', path: string, data?: unkn
 test('login, body weight, menu auto-start, calorie estimate, and record editing', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'ログアウト' })).toHaveCount(0)
-  await page.getByRole('link', { name: 'ログイン' }).click()
+  await page.locator('header').getByRole('link', { name: 'ログイン' }).click()
   await expect(page).toHaveURL(/\/account$/)
   await page.getByLabel('ユーザー名').fill(username)
   await page.getByLabel('パスワード').fill(password)
@@ -27,7 +27,7 @@ test('login, body weight, menu auto-start, calorie estimate, and record editing'
 
   const header = page.locator('header')
   await expect(header.getByText(username)).toBeVisible()
-  await expect(header.getByRole('link', { name: 'ログイン' })).toHaveCount(0)
+  await expect(header.getByRole('link', { name: /ログイン/ })).toHaveCount(0)
 
   await page.goto('/account')
   await expect(page.locator('main').getByText('ログイン中')).toBeVisible()
@@ -62,8 +62,8 @@ test('login, body weight, menu auto-start, calorie estimate, and record editing'
   // header logout returns to the login screen and ends the server session
   await page.locator('header').getByRole('button', { name: 'ログアウト' }).click()
   await expect(page).toHaveURL(/\/account$/)
-  await expect(page.locator('header').getByRole('link', { name: 'ログイン' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ログイン', exact: true })).toBeVisible()
   await page.reload()
-  await expect(page.locator('header').getByRole('link', { name: 'ログイン' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ログイン', exact: true })).toBeVisible()
   await expect(page.locator('header').getByText(username)).toHaveCount(0)
 })

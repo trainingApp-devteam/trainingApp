@@ -2,15 +2,38 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listRecords, RecordItem } from '../api/records'
 import { BodyMeasurement, listBodyMeasurements } from '../api/bodyMeasurements'
+import { useAuth } from '../auth/AuthContext'
 
 export default function Home(): JSX.Element {
+  const { status } = useAuth()
   const [records, setRecords] = useState<RecordItem[]>([])
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
 
   useEffect(() => {
+    if (status !== 'authenticated') {
+      setRecords([])
+      setMeasurements([])
+      return
+    }
     listRecords().then(setRecords).catch(() => setRecords([]))
     listBodyMeasurements().then(setMeasurements).catch(() => setMeasurements([]))
-  }, [])
+  }, [status])
+
+  if (status === 'loading') return <div className="container mx-auto px-4 py-10 text-gray-300">読み込み中...</div>
+
+  if (status === 'anonymous') {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <section className="mx-auto max-w-xl rounded-2xl bg-white/5 p-8 text-center shadow-lg">
+          <h2 className="mb-3 text-xl font-semibold">ログインしてください</h2>
+          <p className="mb-6 text-gray-300">トレーニングの記録やメニューの作成には、ログインが必要です。</p>
+          <Link to="/account" className="inline-block rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 px-8 py-3 font-medium text-white hover:from-purple-500 hover:to-indigo-500">
+            ログイン画面へ
+          </Link>
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">

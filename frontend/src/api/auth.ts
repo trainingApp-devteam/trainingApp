@@ -9,13 +9,13 @@ export function getCurrentAccount(): Promise<Account> {
 
 export async function login(username: string, password: string): Promise<Account> {
   const account = await apiRequest<Account>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
-  notifyAuthChanged()
+  notifyAuthChanged(account)
   return account
 }
 
 export async function logout(): Promise<void> {
   await apiRequest<void>('/auth/logout', { method: 'POST' })
-  notifyAuthChanged()
+  notifyAuthChanged(null)
 }
 
 export function acceptInvitation(input: { token: string; username: string; displayName: string; password: string }): Promise<{ status: string }> {

@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react"
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login, updateBodyWeight } from '../api/auth'
 import { onAuthChanged } from '../api/authEvents'
 import { getAccountBodyWeight, syncAccountProfile } from '../api/accountProfile'
 
 export default function Account(): JSX.Element {
   const navigate = useNavigate()
-  const [mode, setMode] = useState<'login' | 'invitation'>('login')
+  const location = useLocation()
+  const returnTo = (location.state as { from?: string } | null)?.from
+  const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -34,13 +36,19 @@ export default function Account(): JSX.Element {
     setBusy(true); setError(null); setMessage(null)
     try {
       setCurrent(await login(username, password))
-      navigate('/')
+      navigate(returnTo || '/', { replace: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ログインできませんでした')
     } finally { setBusy(false) }
   }
 
-  async function submitInvitation() {
+  function switchMode(next: 'login' | 'register') {
+    setMode(next)
+    setError(null)
+    setMessage(null)
+  }
+
+  async function submitRegistration() {
     setBusy(true); setError(null); setMessage(null)
     try {
       await acceptInvitation({ token: invitationToken, username, displayName, password })
@@ -79,12 +87,16 @@ export default function Account(): JSX.Element {
         {error && <div role="alert" className="mb-3 text-red-400">{error}</div>}
         {message && <div role="status" className="mb-3 text-green-400">{message}</div>}
         {!current && (
-          <>
-            <div className="mb-4 flex gap-2" role="tablist" aria-label="アカウント操作">
-              <button role="tab" aria-selected={mode === 'login'} onClick={() => setMode('login')} className="px-3 py-2 rounded bg-blue-700">ログイン</button>
-              <button role="tab" aria-selected={mode === 'invitation'} onClick={() => setMode('invitation')} className="px-3 py-2 rounded bg-gray-700">招待で登録</button>
-            </div>
-            {mode === 'invitation' && <>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (mode === 'login') submitLogin()
+              else submitRegistration()
+            }}
+          >
+            <h3 className="mb-4 text-lg font-semibold">{mode === 'login' ? 'ログイン' : '新規登録'}</h3>
+            {mode === 'login' && returnTo && !message && <p className="mb-3 text-sm text-gray-300">この画面を利用するにはログインが必要です。</p>}
+            {mode === 'register' && <>
               <div className="mb-3"><label htmlFor="account-invitation" className="block text-sm">招待コード</label>
                 <input id="account-invitation" value={invitationToken} onChange={e => setInvitationToken(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
               <div className="mb-3"><label htmlFor="account-display-name" className="block text-sm">表示名</label>
@@ -92,12 +104,19 @@ export default function Account(): JSX.Element {
             </>}
             <div className="mb-3"><label htmlFor="account-username" className="block text-sm">ユーザー名</label>
               <input id="account-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
-            <div className="mb-3"><label htmlFor="account-password" className="block text-sm">パスワード</label>
+            <div className="mb-4"><label htmlFor="account-password" className="block text-sm">パスワード</label>
               <input id="account-password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 rounded bg-gray-800/60" /></div>
-            <button disabled={busy} onClick={mode === 'login' ? submitLogin : submitInvitation} className="px-3 py-2 rounded bg-green-700 disabled:opacity-50">
+            <button type="submit" disabled={busy} className="w-full px-3 py-2 rounded bg-green-700 disabled:opacity-50">
               {busy ? '処理中...' : mode === 'login' ? 'ログイン' : '登録申請'}
             </button>
-          </>
+            <p className="mt-4 text-sm text-gray-300">
+              {mode === 'login' ? (
+                <>アカウントをお持ちでない方は <button type="button" onClick={() => switchMode('register')} className="underline text-indigo-300 hover:text-indigo-200">新規登録</button></>
+              ) : (
+                <>登録済みの方は <button type="button" onClick={() => switchMode('login')} className="underline text-indigo-300 hover:text-indigo-200">ログインへ戻る</button></>
+              )}
+            </p>
+          </form>
         )}
 
         {current && (

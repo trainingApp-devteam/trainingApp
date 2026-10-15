@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Account, getCurrentAccount, logout } from '../api/auth'
-import { onAuthChanged } from '../api/authEvents'
-import { syncAccountProfile } from '../api/accountProfile'
+import { logout } from '../api/auth'
+import { useAuth } from '../auth/AuthContext'
 import { localDateString } from '../utils/date'
 
 export const navItems = [
@@ -16,7 +15,7 @@ export const navItems = [
 export default function Header(): JSX.Element {
   const today = localDateString()
   const [open, setOpen] = useState(false)
-  const [account, setAccount] = useState<Account | null>(null)
+  const { status, account, clear } = useAuth()
   const [loggingOut, setLoggingOut] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -24,29 +23,6 @@ export default function Header(): JSX.Element {
   const navigate = useNavigate()
 
   useEffect(() => { setOpen(false) }, [location.pathname])
-
-  useEffect(() => {
-    let active = true
-    function refresh() {
-      getCurrentAccount()
-        .then((current) => {
-          if (!active) return
-          syncAccountProfile(current)
-          setAccount(current)
-        })
-        .catch(() => {
-          if (!active) return
-          localStorage.removeItem('trainingapp:authUser')
-          setAccount(null)
-        })
-    }
-    refresh()
-    const unsubscribe = onAuthChanged(refresh)
-    return () => {
-      active = false
-      unsubscribe()
-    }
-  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -71,8 +47,7 @@ export default function Header(): JSX.Element {
     setLoggingOut(true)
     try {
       await logout()
-      localStorage.removeItem('trainingapp:authUser')
-      setAccount(null)
+      clear()
       navigate('/account')
     } catch {
       // ログアウトに失敗した場合はログイン状態のまま表示し、再度の操作を可能にする
@@ -103,11 +78,11 @@ export default function Header(): JSX.Element {
                 ログアウト
               </button>
             </>
-          ) : (
+          ) : status === 'anonymous' && location.pathname !== '/account' ? (
             <Link to="/account" className="shrink-0 rounded bg-indigo-600 px-3 py-1.5 text-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-300">
               ログイン
             </Link>
-          )}
+          ) : null}
           <div ref={containerRef} className="relative shrink-0">
             <button
               ref={buttonRef}

@@ -3,6 +3,7 @@ import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Header from '../Header'
+import { AuthProvider } from '../../auth/AuthContext'
 import { getCurrentAccount, logout } from '../../api/auth'
 import { notifyAuthChanged } from '../../api/authEvents'
 
@@ -13,11 +14,13 @@ const member = { id: 2, username: 'taro', displayName: '太郎', role: 'USER' as
 function renderHeader(initialPath = '/') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
-      <Header />
-      <Routes>
-        <Route path="/account" element={<div>account page</div>} />
-        <Route path="*" element={<div>content</div>} />
-      </Routes>
+      <AuthProvider>
+        <Header />
+        <Routes>
+          <Route path="/account" element={<div>account page</div>} />
+          <Route path="*" element={<div>content</div>} />
+        </Routes>
+      </AuthProvider>
     </MemoryRouter>,
   )
 }
@@ -115,6 +118,14 @@ describe('Header hamburger menu', () => {
       expect(screen.queryByRole('button', { name: 'ログアウト' })).not.toBeInTheDocument()
     })
 
+    test('does not repeat the login link on the account screen itself', async () => {
+      renderHeader('/account')
+      await screen.findByRole('button', { name: 'メニュー' })
+      await act(async () => { await Promise.resolve() })
+
+      expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument()
+    })
+
     test('shows the account name and a logout button when logged in', async () => {
       vi.mocked(getCurrentAccount).mockResolvedValue(member)
       renderHeader()
@@ -132,7 +143,7 @@ describe('Header hamburger menu', () => {
       expect(await screen.findByText('taro')).toBeInTheDocument()
     })
 
-    test('logs out, returns to the login screen, and clears the cached account', async () => {
+    test('logs out, returns to the login screen (which has its own login form), and clears the cached account', async () => {
       const user = userEvent.setup()
       vi.mocked(getCurrentAccount).mockResolvedValue(member)
       renderHeader('/history')
@@ -140,9 +151,9 @@ describe('Header hamburger menu', () => {
       await user.click(await screen.findByRole('button', { name: 'ログアウト' }))
 
       expect(logout).toHaveBeenCalledTimes(1)
-      expect(await screen.findByRole('link', { name: 'ログイン' })).toBeInTheDocument()
+      expect(await screen.findByText('account page')).toBeInTheDocument()
       expect(screen.queryByText('太郎')).not.toBeInTheDocument()
-      expect(screen.getByText('account page')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'ログアウト' })).not.toBeInTheDocument()
       expect(localStorage.getItem('trainingapp:authUser')).toBeNull()
     })
 

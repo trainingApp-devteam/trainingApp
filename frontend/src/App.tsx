@@ -10,25 +10,29 @@ import Body from "./pages/Body";
 import Menu from "./pages/Menu";
 import Account from "./pages/Account";
 import Header from "./components/Header";
+import RequireAuth from "./components/RequireAuth";
+import { AuthProvider } from "./auth/AuthContext";
 
 export default function App(): JSX.Element {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white">
       <BrowserRouter>
-        <Header />
-        <main className="pt-6">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/record" element={<Record />} />
-            <Route path="/record/select" element={<SelectRecordMode />} />
-            <Route path="/record/select-menu" element={<SelectMenu />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/history/:id" element={<HistoryDetail />} />
-            <Route path="/body" element={<Body />} />
-            <Route path="/menu" element={<Menu />} />
-            <Route path="/account" element={<Account />} />
-          </Routes>
-        </main>
+        <AuthProvider>
+          <Header />
+          <main className="pt-6">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/account" element={<Account />} />
+              <Route path="/record" element={<RequireAuth><Record /></RequireAuth>} />
+              <Route path="/record/select" element={<RequireAuth><SelectRecordMode /></RequireAuth>} />
+              <Route path="/record/select-menu" element={<RequireAuth><SelectMenu /></RequireAuth>} />
+              <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
+              <Route path="/history/:id" element={<RequireAuth><HistoryDetail /></RequireAuth>} />
+              <Route path="/body" element={<RequireAuth><Body /></RequireAuth>} />
+              <Route path="/menu" element={<RequireAuth><Menu /></RequireAuth>} />
+            </Routes>
+          </main>
+        </AuthProvider>
       </BrowserRouter>
     </div>
   );

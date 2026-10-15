@@ -1,7 +1,50 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+const username = process.env.E2E_ADMIN_USERNAME || 'e2e-admin'
+const password = process.env.E2E_ADMIN_PASSWORD || 'e2e-password-123'
+
+async function loginThroughForm(page: Page) {
+  await page.goto('/account')
+  await page.getByLabel('ユーザー名').fill(username)
+  await page.getByLabel('パスワード').fill(password)
+  await page.getByRole('button', { name: 'ログイン', exact: true }).click()
+  await expect(page).toHaveURL('/')
+}
+
+test('logged-out visitors cannot record or create menus', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'ログインしてください' })).toBeVisible()
+  await expect(page.getByText('今すぐ記録')).toHaveCount(0)
+  await expect(page.getByText('メニューを作成')).toHaveCount(0)
+
+  for (const path of ['/record', '/record/select', '/record/select-menu', '/history', '/menu', '/body']) {
+    await page.goto(path)
+    await expect(page).toHaveURL(/\/account$/)
+    await expect(page.getByText('この画面を利用するにはログインが必要です。')).toBeVisible()
+  }
+
+  // the login screen has a single login button, and the header does not repeat it
+  await expect(page.getByRole('button', { name: /ログイン/ })).toHaveCount(1)
+  await expect(page.locator('header').getByRole('link', { name: /ログイン/ })).toHaveCount(0)
+  await expect(page.getByRole('tab')).toHaveCount(0)
+
+  await page.getByRole('button', { name: '新規登録' }).click()
+  await expect(page.getByRole('heading', { name: '新規登録' })).toBeVisible()
+  await expect(page.getByLabel('招待コード')).toBeVisible()
+  await expect(page.getByText('招待で登録')).toHaveCount(0)
+})
+
+test('after login the protected page that was requested opens', async ({ page }) => {
+  await page.goto('/history')
+  await expect(page).toHaveURL(/\/account$/)
+  await page.getByLabel('ユーザー名').fill(username)
+  await page.getByLabel('パスワード').fill(password)
+  await page.getByRole('button', { name: 'ログイン', exact: true }).click()
+  await expect(page).toHaveURL(/\/history$/)
+})
 
 test('hamburger menu replaces header nav and quick links', async ({ page }) => {
-  await page.goto('/')
+  await loginThroughForm(page)
   await expect(page.getByText('クイックリンク')).toHaveCount(0)
   await expect(page.getByRole('link', { name: '履歴' })).toHaveCount(0)
 
