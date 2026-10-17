@@ -23,7 +23,10 @@ paths:
       summary: Initialize the CSRF cookie
       security: []
       responses:
-        '204': { description: CSRF cookie issued }
+        '204':
+          description: CSRF cookie issued. The same token is also returned in the X-XSRF-TOKEN header for a frontend on another domain, which cannot read the cookie.
+          headers:
+            X-XSRF-TOKEN: { schema: { type: string } }
   /auth/login:
     post:
       tags: [Authentication]

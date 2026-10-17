@@ -83,6 +83,7 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 | `exercise_group` | VARCHAR(50) NOT NULL | INDEX | 種目グループ |
 | `is_builtin` | BOOLEAN NOT NULL | DEFAULT TRUE | 標準種目か |
 | `calorie_enabled` | BOOLEAN NOT NULL | DEFAULT FALSE | 推定係数がある標準種目か |
+| `record_type` | VARCHAR(10) NOT NULL | DEFAULT 'REP'、CHECK IN ('REP','MINUTE') | 種目ごとに固定の記録形式（V12）。有酸素マシン4種は`MINUTE` |
 | `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 作成日時 |
 
 実装ではカロリー用の別テーブルは設けず、共通の`exercises`テーブル（V4）に`exercise_code`（UNIQUE、標準種目のみ）と`calorie_enabled`を追加している。種目は標準種目だけで、利用者が作成した種目を表していた`owner_user_id`列（FK・インデックスを含む）はV11で削除した。標準種目と推定可能フラグはFlywayで登録する。V10で器具名の項目（ダンベル、スミスマシン、パワーラック）とスクワットにも一般的な筋トレの係数を登録し、全標準種目を推定対象にした。

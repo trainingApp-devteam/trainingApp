@@ -64,6 +64,7 @@
 | `GET` | `/statistics/exercises/{exerciseId}` | ログイン、本人データ | 種目別推移（記録ごとの最大重量・トレーニング量等） |
 | `GET` | `/exercises/{id}/calorie-rates` | ログイン | 種目・記録形式・RPE帯別のMET係数 |
 | `POST` | `/calorie-estimates` | ログイン | 標準種目の消費カロリーを推定し、入力・係数・結果を保存 |
+| `POST` | `/calorie-estimates/preview` | ログイン | 同じ入力・式で消費カロリーを見積もる（保存しない。`estimateId`なし）。メニュー作成時の表示用 |
 
 アカウント削除と利用者の全データ一括削除に対応するAPIは初期リリースで作成しない。
 
@@ -181,7 +182,9 @@
 - 最大重量は重量が存在するセットから計算する。
 - トレーニング量は重量と回数が両方存在するセットのみ`weightKg * reps`で集計する。時間セットは含めない。
 - `POST /calorie-estimates`は`exerciseId`（標準種目のID）, `basis`, `rpe`, `bodyWeightKg`と、回数形式なら`reps`、時間形式なら`durationSeconds`を受け取る。`externalLoadKg`は任意。
-- `GET /exercises`の各種目は`calorieBases`（推定できる記録形式。筋トレは`REP`と`MINUTE`、有酸素マシンは`MINUTE`のみ）を返す。画面はこれで記録形式を制限する。
+- `GET /exercises`の各種目は`calorieBases`（推定できる記録形式。筋トレは`REP`と`MINUTE`、有酸素マシンは`MINUTE`のみ）と`recordType`（種目ごとに固定の記録形式。有酸素マシンは`MINUTE`、それ以外は`REP`）を返す。画面は`recordType`の形式でだけ入力させる。
+- `GET /auth/csrf`はCSRFクッキーに加え、同じトークンをレスポンスヘッダー`X-XSRF-TOKEN`でも返す。画面とAPIが別ドメイン（GitHub Pages + Render）の場合、画面はAPIのクッキーを読めないため、このヘッダーの値を`X-XSRF-TOKEN`リクエストヘッダーに付ける。
+- 別ドメイン構成では`TRAININGAPP_CORS_ALLOWED_ORIGINS`に画面のオリジンを設定し、`/api/**`で資格情報付きのCORSを許可する（許可ヘッダー: `Content-Type`、`X-XSRF-TOKEN`。公開ヘッダー: `X-XSRF-TOKEN`）。セッション・CSRFクッキーは`SESSION_COOKIE_SAME_SITE=none`で`SameSite=None; Secure`にする。未設定ならCORSは無効で、従来どおり同一オリジンで動く。
 - 係数はサーバー側のDBから種目・形式・RPE帯で選択する。クライアントが送信したMETや推定カロリー値は信用しない。
 - 回数形式はDBの`secondsPerRep × reps`を動作秒数とし、時間形式は`durationSeconds`を使う。MET式で計算後、係数IDと入力を含む推定結果をDBへ保存する。
 - 全種目に係数がある。有酸素マシンの`REP`と存在しない種目は`422`とし、カロリーを0に偽装しない。

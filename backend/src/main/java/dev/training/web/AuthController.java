@@ -42,8 +42,8 @@ public class AuthController {
 
     @GetMapping("/csrf")
     ResponseEntity<Void> csrf(CsrfToken token) {
-        token.getToken();
-        return ResponseEntity.noContent().build();
+        // 同一ドメインの画面はクッキー、別ドメインの画面はこのヘッダーの値を X-XSRF-TOKEN に付けて送る
+        return ResponseEntity.noContent().header(token.getHeaderName(), token.getToken()).build();
     }
 
     @PostMapping("/login")

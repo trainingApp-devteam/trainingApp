@@ -17,7 +17,7 @@ import { AuthProvider } from "./auth/AuthContext";
 export default function App(): JSX.Element {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white">
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <AuthProvider>
           <Header />
           <main className="pt-6">
