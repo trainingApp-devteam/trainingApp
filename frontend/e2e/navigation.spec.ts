@@ -66,18 +66,28 @@ test('hamburger menu replaces header nav and quick links', async ({ page }) => {
   await page.screenshot({ path: 'test-results/hamburger-mobile.png' })
 })
 
-test('record screen is split into date, set entry, set list, and run sections', async ({ page }) => {
+test('record screen fits menu creation in one compact form and shows the sets in a dialog', async ({ page }) => {
   await loginThroughForm(page)
   await page.goto('/record')
 
   await expect(page.getByRole('heading', { name: 'メニュー作成' })).toBeVisible()
-  for (const name of ['日付', '種目を選んでセットを追加', '作成中のセット', '実行']) {
-    await expect(page.getByRole('heading', { name })).toBeVisible()
-  }
+  await expect(page.getByLabel('日付')).toBeVisible()
+  const form = page.getByRole('form', { name: 'メニュー作成' })
+  await expect(form.getByRole('button', { name: '実行開始' })).toBeVisible()
   await expect(page.getByText('推定用体重')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'メニューを適用' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '音楽を再生' })).toHaveCount(0)
+  await expect(page.getByRole('radio')).toHaveCount(0)
+
+  // スマートフォン幅でも、作成フォーム全体が1画面に収まる
+  await page.setViewportSize({ width: 375, height: 800 })
+  const box = await form.boundingBox()
+  expect(box && box.y + box.height).toBeLessThan(800)
 
   await page.getByRole('button', { name: 'セットを追加' }).click()
-  await expect(page.getByRole('region', { name: '作成中のセット' }).getByRole('row')).toHaveCount(2)
+  await page.getByRole('button', { name: '作成中のセット（1）' }).click()
+  await expect(page.getByRole('dialog', { name: '作成中のセット' }).getByRole('listitem')).toHaveCount(1)
+  // 横にはみ出さない
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
   await page.screenshot({ path: 'test-results/record-sections.png', fullPage: true })
 })

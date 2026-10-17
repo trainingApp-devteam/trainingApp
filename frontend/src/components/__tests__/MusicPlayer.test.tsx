@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import MusicPlayer, { PLAYLIST_ID } from '../MusicPlayer'
+import MusicPlayer, { PLAYLIST_ID, parsePlaylistId } from '../MusicPlayer'
 
 type Events = Record<string, (event: { target: any; data: number }) => void>
 
@@ -105,5 +105,44 @@ describe('MusicPlayer', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  test('plays the given playlist as soon as it is shown when autoPlay is set', async () => {
+    const yt = fakeYouTube()
+    render(<MusicPlayer playlistId="PLabcdefghij123" autoPlay />)
+
+    await vi.waitFor(() => expect(yt.Player).toHaveBeenCalled())
+    expect((screen.getByTitle('トレーニング用プレイリスト（YouTube）') as HTMLIFrameElement).src).toContain('list=PLabcdefghij123')
+    yt.fire('onReady')
+    expect(yt.player.playVideo).toHaveBeenCalled()
+  })
+
+  test('pauses while suspended and resumes afterwards if it was playing', async () => {
+    const yt = fakeYouTube()
+    const { rerender } = render(<MusicPlayer autoPlay />)
+    await vi.waitFor(() => expect(yt.Player).toHaveBeenCalled())
+    yt.fire('onStateChange', 1)
+    yt.player.playVideo.mockClear()
+
+    rerender(<MusicPlayer autoPlay suspended />)
+    expect(yt.player.pauseVideo).toHaveBeenCalled()
+    rerender(<MusicPlayer autoPlay suspended={false} />)
+    expect(yt.player.playVideo).toHaveBeenCalled()
+  })
+})
+
+describe('parsePlaylistId', () => {
+  test('reads the playlist from YouTube URLs or a bare ID', () => {
+    expect(parsePlaylistId('https://www.youtube.com/playlist?list=PLabcdefghij123')).toBe('PLabcdefghij123')
+    expect(parsePlaylistId('https://youtube.com/watch?v=abc&list=PLabcdefghij123&index=2')).toBe('PLabcdefghij123')
+    expect(parsePlaylistId('https://music.youtube.com/playlist?list=PLabcdefghij123')).toBe('PLabcdefghij123')
+    expect(parsePlaylistId(' PLabcdefghij123 ')).toBe('PLabcdefghij123')
+  })
+
+  test('rejects other sites, URLs without a playlist, and empty input', () => {
+    expect(parsePlaylistId('https://example.com/playlist?list=PLabcdefghij123')).toBeNull()
+    expect(parsePlaylistId('https://www.youtube.com/watch?v=abc')).toBeNull()
+    expect(parsePlaylistId('')).toBeNull()
+    expect(parsePlaylistId('音楽')).toBeNull()
   })
 })

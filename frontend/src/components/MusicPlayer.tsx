@@ -1,8 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ui } from '../styles/ui'
 
-// トレーニング中に流すYouTubeプレイリスト（公開/限定公開であること）
+// 既定のYouTubeプレイリスト（公開/限定公開であること）
 export const PLAYLIST_ID = 'PL8UB8_UnSIC5_shdHl9avGNMyR3zGls-e'
+
+// プレイリストのURL（list=…を含むもの）またはIDから、プレイリストIDを取り出す。取り出せなければnull
+export function parsePlaylistId(input: string): string | null {
+  const value = input.trim()
+  if (!value) return null
+  if (/^[A-Za-z0-9_-]{10,}$/.test(value)) return value
+  try {
+    const url = new URL(value)
+    const host = url.hostname.replace(/^(www\.|m\.|music\.)/, '')
+    if (!['youtube.com', 'youtu.be', 'youtube-nocookie.com'].includes(host)) return null
+    const list = url.searchParams.get('list')
+    return list && /^[A-Za-z0-9_-]{10,}$/.test(list) ? list : null
+  } catch {
+    return null
+  }
+}
 
 // YouTube IFrame Player API のうち、この画面で使う部分だけの型
 type YTPlayer = {
@@ -55,10 +71,16 @@ const SKIPPABLE_ERRORS = [2, 5, 100, 101, 150]
 type Props = {
   // 値が変わるたびに、タイマー終了音が聞こえるよう音量を一時的に下げる
   duckSignal?: number
+  playlistId?: string
+  // trueなら表示と同時に再生を始める（実行開始を押したときに使う）
+  autoPlay?: boolean
+  // trueの間は一時停止し、falseに戻ったら（再生中だった場合）再開する
+  suspended?: boolean
 }
 
-export default function MusicPlayer({ duckSignal = 0 }: Props): JSX.Element {
-  const [opened, setOpened] = useState(false)
+export default function MusicPlayer({ duckSignal = 0, playlistId = PLAYLIST_ID, autoPlay = false, suspended = false }: Props): JSX.Element {
+  const [opened, setOpened] = useState(autoPlay)
+  const resumeRef = useRef(false)
   const [playing, setPlaying] = useState(false)
   const [shuffle, setShuffle] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -75,7 +97,7 @@ export default function MusicPlayer({ duckSignal = 0 }: Props): JSX.Element {
         if (cancelled || !frameRef.current) return
         playerRef.current = new YT.Player(frameRef.current, {
           events: {
-            onReady: (event) => { event.target.playVideo() },
+            onReady: (event) => { if (!suspended) event.target.playVideo() },
             onStateChange: (event) => {
               if (event.data === YT.PlayerState.PLAYING) {
                 failuresRef.current = 0
@@ -118,6 +140,19 @@ export default function MusicPlayer({ duckSignal = 0 }: Props): JSX.Element {
     return () => { window.clearTimeout(timer); playerRef.current?.setVolume(volume) }
   }, [duckSignal])
 
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player) return
+    if (suspended) {
+      resumeRef.current = playing
+      if (playing) player.pauseVideo()
+    } else if (resumeRef.current) {
+      resumeRef.current = false
+      player.playVideo()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suspended])
+
   function toggleShuffle() {
     const next = !shuffle
     setShuffle(next)
@@ -125,7 +160,7 @@ export default function MusicPlayer({ duckSignal = 0 }: Props): JSX.Element {
     if (next) playerRef.current?.playVideoAt(0)
   }
 
-  const src = `https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(PLAYLIST_ID)}`
+  const src = `https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(playlistId)}`
     + `&enablejsapi=1&playsinline=1&rel=0&origin=${encodeURIComponent(window.location.origin)}`
 
   return (

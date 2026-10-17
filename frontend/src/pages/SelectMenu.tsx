@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { listRoutines, Routine } from '../api/routines'
 
 export default function SelectMenu(): JSX.Element {
   const [savedMenus, setSavedMenus] = useState<Routine[]>([])
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  // 記録方法の選択画面で選んだ進め方を記録画面へ引き継ぐ
+  const [searchParams] = useSearchParams()
+  const flowQuery = searchParams.get('flow') === 'step' ? '&flow=step' : ''
 
   useEffect(() => {
     listRoutines().then(setSavedMenus).catch((e) => setError(e instanceof Error ? e.message : 'メニューを取得できませんでした'))
@@ -24,7 +27,7 @@ export default function SelectMenu(): JSX.Element {
             <div key={m.id} className="p-4 bg-black/20 rounded flex items-center justify-between">
               <div>{m.name}</div>
                 <div className="flex gap-2">
-                <button onClick={() => navigate(`/record?menuId=${encodeURIComponent(m.id)}&autoStart=1`)} className="px-3 py-1 rounded bg-indigo-600 text-white">選択して記録へ</button>
+                <button onClick={() => navigate(`/record?menuId=${encodeURIComponent(m.id)}&autoStart=1${flowQuery}`)} className="px-3 py-1 rounded bg-indigo-600 text-white">選択して記録へ</button>
                 <button onClick={() => { navigator.clipboard?.writeText(m.id) }} className="px-2 py-1 rounded bg-gray-600 text-white">IDコピー</button>
               </div>
             </div>

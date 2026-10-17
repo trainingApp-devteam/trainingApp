@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { searchExercises, listExerciseGroups, canEstimate } from '../api/exercises'
 import type { Exercise } from '../api/exercises'
 import { getLatestBodyWeight } from '../api/bodyMeasurements'
@@ -8,7 +8,8 @@ import { createRecord, withCalorieEstimates } from '../api/records'
 import type { SetItem } from '../api/records'
 import { listRoutines } from '../api/routines'
 import { localDateString } from '../utils/date'
-import MusicPlayer from '../components/MusicPlayer'
+import MusicPlayer, { parsePlaylistId } from '../components/MusicPlayer'
+import Modal from '../components/Modal'
 // Spotify integration removed — restored original Record page
 // ExerciseSelect modal removed
 
@@ -22,15 +23,67 @@ function timeOnly(exercise: Exercise | undefined): boolean {
   return bases.includes('MINUTE') && !bases.includes('REP')
 }
 
+// 実行時に流すプレイリストのURL。端末ごとの入力の手間を省くためだけに保存する
+const PLAYLIST_STORAGE_KEY = 'trainingApp.playlistUrl'
+
+function loadPlaylistUrl(): string {
+  try { return localStorage.getItem(PLAYLIST_STORAGE_KEY) || '' } catch { return '' }
+}
+
+function savePlaylistUrl(url: string) {
+  try {
+    if (url) localStorage.setItem(PLAYLIST_STORAGE_KEY, url)
+    else localStorage.removeItem(PLAYLIST_STORAGE_KEY)
+  } catch { /* 保存できなくても実行は続ける */ }
+}
+
+// 連続する同じ種目のセットを「種目名×セット数」にまとめる
+function groupSets(sets: SetItem[]): Array<{ name: string; count: number }> {
+  const groups: Array<{ exerciseId?: string; name: string; count: number }> = []
+  for (const set of sets) {
+    const last = groups[groups.length - 1]
+    if (last && last.exerciseId === set.exerciseId) last.count += 1
+    else groups.push({ exerciseId: set.exerciseId, name: set.exerciseName || '種目', count: 1 })
+  }
+  return groups
+}
+
+// セットを種目名の並びにまとめる（連続する同じ種目は1つ）
+function splitGroups(sets: SetItem[]): string[] {
+  const names: string[] = []
+  let rest = sets
+  while (rest.length > 0) {
+    const [first, others] = splitFirstExercise(rest)
+    names.push(first[0].exerciseName || '種目')
+    rest = others
+  }
+  return names
+}
+
+// 先頭の種目のセット（連続する同じ種目）と、それ以降に分ける
+function splitFirstExercise(sets: SetItem[]): [SetItem[], SetItem[]] {
+  let n = 0
+  while (n < sets.length && sets[n].exerciseId === sets[0].exerciseId) n++
+  return [sets.slice(0, n), sets.slice(n)]
+}
+
 export default function Record(): JSX.Element {
   const navigate = useNavigate()
   const [autoStartPending, setAutoStartPending] = useState(false)
-  const [flow, setFlow] = useState<Flow>('batch')
+  // 進め方は記録方法の選択画面で選び、?flow=step で受け取る
+  const [searchParams] = useSearchParams()
+  const [flow] = useState<Flow>(() => searchParams.get('flow') === 'step' ? 'step' : 'batch')
+  // 1種目ずつの進め方で保存済みメニューを使うとき、まだ設定に出していない種目のセット
+  const [pendingMenuSets, setPendingMenuSets] = useState<SetItem[]>([])
   // 1種目ずつの進め方で、実行を終えた種目のセット
   const [completedSets, setCompletedSets] = useState<SetItem[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   // タイマー終了音を鳴らすたびに増やし、音楽の音量を一時的に下げる
   const [duckSignal, setDuckSignal] = useState(0)
+  const [playlistUrl, setPlaylistUrl] = useState(loadPlaylistUrl)
+  // 実行開始時に確定したプレイリスト。nullなら音楽を流さない
+  const [musicPlaylistId, setMusicPlaylistId] = useState<string | null>(null)
+  const [showPlan, setShowPlan] = useState(false)
 
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [date, setDate] = useState(() => localDateString())
@@ -120,7 +173,13 @@ export default function Record(): JSX.Element {
         if (latestWeight !== null) s.bodyWeightKg = latestWeight
         return s as SetItem
       })
-      setPlanSets(converted)
+      if (flow === 'step') {
+        const [first, rest] = splitFirstExercise(converted)
+        setPlanSets(first)
+        setPendingMenuSets(rest)
+      } else {
+        setPlanSets(converted)
+      }
       // if autoStart flag present, set exerciseId to first and mark pending start
       const auto = qs.get('autoStart')
       if (auto) {
@@ -163,7 +222,7 @@ export default function Record(): JSX.Element {
 
   const selectedExercise = exercises.find((e) => e.id === exerciseId)
   const selectedTimeOnly = timeOnly(selectedExercise)
-  const flowLocked = planSets.length > 0 || completedSets.length > 0
+  const canAdd = Boolean(exerciseId) && (setType === 'reps' ? (Number.isInteger(reps) && reps >= 1) : (Number.isInteger(timeSeconds) && timeSeconds >= 1))
   // 完了した種目を、実行した順に種目単位でまとめる
   const completedGroups = completedSets.reduce<Array<{ exerciseId?: string; name: string; count: number }>>((groups, set) => {
     const last = groups[groups.length - 1]
@@ -255,8 +314,14 @@ export default function Record(): JSX.Element {
       if (first && first.exerciseId) setExerciseId(first.exerciseId)
     }
     if (!validatePlanSets()) return
+    const url = playlistUrl.trim()
+    const playlistId = parsePlaylistId(url)
+    if (url && !playlistId) return setError('プレイリストのURLを確認してください（例: https://www.youtube.com/playlist?list=…）')
+    savePlaylistUrl(url)
+    setMusicPlaylistId(playlistId)
     setError(null)
     setNotice(null)
+    setShowPlan(false)
     setInSession(true)
     setCurrentIndex(0)
     // initialize remaining for first set if it's time-based, but don't auto-start
@@ -287,12 +352,19 @@ export default function Record(): JSX.Element {
   function completeCurrentExercise() {
     const finished = planSets
     const name = finished[0]?.exerciseName || '種目'
+    const [next, rest] = splitFirstExercise(pendingMenuSets)
     setCompletedSets((done) => [...done, ...finished])
-    setPlanSets([])
+    setPlanSets(next)
+    setPendingMenuSets(rest)
     setInSession(false)
     setCurrentIndex(0)
     setIsTimerRunning(false)
-    setNotice(`「${name}」が完了しました。次の種目を設定するか、「完了して記録」で保存してください`)
+    if (next.length > 0) {
+      if (next[0].exerciseId) setExerciseId(next[0].exerciseId)
+      setNotice(`「${name}」が完了しました。次は「${next[0].exerciseName || '種目'}」です。「この種目を実行」で始めるか、「完了して記録」で保存してください`)
+    } else {
+      setNotice(`「${name}」が完了しました。次の種目を設定するか、「完了して記録」で保存してください`)
+    }
   }
 
   function handleNext(autoAdvance = false) {
@@ -403,210 +475,152 @@ export default function Record(): JSX.Element {
 
   return (
     <div className="container mx-auto px-4 py-10">
-      <h2 className="text-2xl font-semibold mb-4">{inSession ? 'メニュー実行' : 'メニュー作成'}</h2>
+      <div className="mb-4 flex max-w-2xl flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-semibold">{inSession ? 'メニュー実行' : 'メニュー作成'}</h2>
+        {!inSession && (
+          <label className="flex items-center gap-2 text-sm text-gray-200">
+            日付
+            <input type="date" aria-label="日付" value={date} onChange={(e) => setDate(e.target.value)} className={`${ui.field} py-1`} />
+          </label>
+        )}
+      </div>
 
       {!inSession && (
-        <div className="max-w-2xl space-y-4">
-          <section aria-labelledby="plan-date-heading" className={ui.card}>
-            <h3 id="plan-date-heading" className={ui.cardTitle}>日付</h3>
-            <input type="date" aria-label="日付" value={date} onChange={(e) => setDate(e.target.value)} className={ui.input} />
-          </section>
-
-          <section aria-labelledby="plan-flow-heading" className={ui.card}>
-            <h3 id="plan-flow-heading" className={ui.cardTitle}>進め方</h3>
-            <div role="radiogroup" aria-labelledby="plan-flow-heading" className="flex flex-col gap-2 sm:flex-row sm:gap-6">
-              <label className="flex items-center gap-2 text-gray-100">
-                <input type="radio" name="flow" checked={flow === 'batch'} disabled={flowLocked} onChange={() => setFlow('batch')} />
-                全種目のセットを組んでまとめて実行
-              </label>
-              <label className="flex items-center gap-2 text-gray-100">
-                <input type="radio" name="flow" checked={flow === 'step'} disabled={flowLocked} onChange={() => setFlow('step')} />
-                1種目ずつ設定して実行
-              </label>
-            </div>
-            <p className={`mt-2 ${ui.muted}`}>
-              {flow === 'batch'
-                ? 'すべての種目のセットを追加してから実行を開始し、最後のセットで記録します。'
-                : '1つの種目のセットを追加して実行し、終わったら次の種目を設定します。すべて終えたら「完了して記録」で保存します。'}
-              {flowLocked && ' 作成中・完了済みのセットがある間は変更できません。'}
-            </p>
-          </section>
-
+        <form
+          aria-label="メニュー作成"
+          className={`max-w-2xl space-y-3 ${ui.card}`}
+          onSubmit={(e) => { e.preventDefault(); if (canAdd) addSetToPlan() }}
+        >
           {flow === 'step' && completedSets.length > 0 && (
-            <section aria-labelledby="plan-done-heading" className={ui.card}>
-              <h3 id="plan-done-heading" className={ui.cardTitle}>完了した種目</h3>
-              <ol className="space-y-1 text-sm text-gray-200">
-                {completedGroups.map((g, i) => (
-                  <li key={i}>{i + 1}. {g.name}（{g.count}セット）</li>
-                ))}
-              </ol>
+            <section aria-label="完了した種目" className={ui.muted}>
+              完了: {completedGroups.map((g, i) => `${i + 1}. ${g.name}（${g.count}セット）`).join(' / ')}
             </section>
           )}
 
-          <form
-            aria-labelledby="plan-add-heading"
-            className={ui.card}
-            onSubmit={(e) => {
-              e.preventDefault()
-              const canAdd = exerciseId && (setType === 'reps' ? (Number.isInteger(reps) && reps >= 1) : (Number.isInteger(timeSeconds) && timeSeconds >= 1))
-              if (canAdd) addSetToPlan()
-            }}
-          >
-            <h3 id="plan-add-heading" className={ui.cardTitle}>{flow === 'step' && completedSets.length > 0 ? '次の種目を選んでセットを追加' : '種目を選んでセットを追加'}</h3>
-          <label className="block mb-4">
-            <div className={ui.label}>種目</div>
-              <div className="flex gap-2 mb-2">
-                {groups.length > 0 && (
-                  <select value={group} onChange={(e) => setGroup(e.target.value)} className={`w-40 ${ui.field}`}>
-                    {groups.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
-                  </select>
-                )}
-                <select value={exerciseId} onChange={(e) => setExerciseId(e.target.value)} className={`flex-1 ${ui.field}`}>
-                  {exercises.map((ex) => (
-                    <option key={ex.id} value={ex.id}>{ex.name}</option>
-                  ))}
-                </select>
-                </div>
+          <div className="flex gap-2">
+            {groups.length > 0 && (
+              <select aria-label="部位" value={group} onChange={(e) => setGroup(e.target.value)} className={`w-32 ${ui.field}`}>
+                {groups.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
+              </select>
+            )}
+            <select aria-label="種目" value={exerciseId} onChange={(e) => setExerciseId(e.target.value)} className={`min-w-0 flex-1 ${ui.field}`}>
+              {exercises.map((ex) => (
+                <option key={ex.id} value={ex.id}>{ex.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {setType === 'reps' ? (
+              <input type="number" min={1} aria-label="回数" value={reps} onChange={(e)=>setReps(Number(e.target.value))} className={`w-20 ${ui.field}`} />
+            ) : (
+              <input type="number" min={1} aria-label="秒数" value={timeSeconds} onChange={(e)=>setTimeSeconds(Number(e.target.value))} className={`w-20 ${ui.field}`} />
+            )}
+            {/* 筋トレ種目は回数・時間のどちらでも記録できる。有酸素マシンは時間に固定 */}
+            <select aria-label="記録形式" value={setType} disabled={selectedTimeOnly} onChange={(e) => setSetType(e.target.value as 'reps' | 'time')} className={ui.field}>
+              <option value="reps">回</option>
+              <option value="time">秒</option>
+            </select>
+            <input type="number" min={0} placeholder="負荷" aria-label="負荷（kg・任意）" value={weight as any} onChange={(e)=>setWeight(e.target.value === '' ? '' : Number(e.target.value))} className={`ml-2 w-20 ${ui.field}`} />
+            <span className="text-sm text-gray-200">kg</span>
+          </div>
+          {selectedTimeOnly && <p className={ui.muted}>この種目は消費カロリーを推定するため、時間で記録します。</p>}
+
+          {/* 説明は行の幅に収め、スマートフォン幅でも横にはみ出さないようにする */}
+          <div className="relative flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2">
+              <span className="text-sm text-gray-200">RPE</span>
+              <input type="range" min={1} max={10} step={1} aria-label="きつさ（RPE 1〜10）" value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
+              <span className="w-5 text-sm text-gray-200">{rpe}</span>
+            </label>
+            <span className="group inline-flex">
+              <button
+                type="button"
+                aria-label="RPEの目安"
+                aria-describedby="rpe-help"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-xs font-semibold text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                ?
+              </button>
+              <span
+                id="rpe-help"
+                role="tooltip"
+                className="invisible absolute left-0 right-0 top-full z-20 mt-1 rounded border border-white/20 bg-gray-800 p-3 text-left text-xs leading-5 text-gray-100 opacity-0 shadow-lg group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+              >
+                あと何回、フォームを保ってできそうだったかで決めます。RPE 10は余力なし、9はあと1回、8はあと2回、7はあと3回、6はあと4回以上が目安です。フォームが崩れる回数は数えません。
+              </span>
+            </span>
+            <button type="submit" disabled={!canAdd} className={`ml-auto ${ui.btnSuccess} ${ui.btnSmall}`}>セットを追加</button>
+          </div>
+
+          <label className="block border-t border-white/10 pt-3">
+            <span className={ui.label}>実行時に流すプレイリスト（YouTubeのURL・任意）</span>
+            <input
+              // type="url"だとIDだけの入力でフォーム送信（セットを追加）が止まるため、テキストで受けて実行開始時に検証する
+              type="text"
+              inputMode="url"
+              value={playlistUrl}
+              onChange={(e) => setPlaylistUrl(e.target.value)}
+              placeholder="https://www.youtube.com/playlist?list=…"
+              className={ui.input}
+            />
           </label>
 
-          
+          {notice && <div role="status" className={ui.success}>{notice}</div>}
+          {error && <div role="alert" className={ui.error}>{error}</div>}
 
-          <div className={`mb-4 ${ui.panel}`}>
-            <div className="flex items-center gap-3 mb-2">
-              <label className={`flex items-center gap-2 ${selectedTimeOnly ? 'text-gray-400' : 'text-gray-100'}`}>
-                <input type="radio" checked={setType==='reps'} disabled={selectedTimeOnly} onChange={()=>setSetType('reps')} /> 回数
-              </label>
-              <label className="flex items-center gap-2 text-gray-100">
-                <input type="radio" checked={setType==='time'} onChange={()=>setSetType('time')} /> 時間
-              </label>
-            </div>
-            {selectedTimeOnly && <p className={`mb-2 ${ui.muted}`}>この種目は消費カロリーを推定するため、時間で記録します。</p>}
-
-            {setType === 'reps' ? (
-              <div className="flex gap-2 mb-2">
-                <input type="number" min={1} value={reps} onChange={(e)=>setReps(Number(e.target.value))} className={`w-24 ${ui.field}`} />
-                <div className="text-sm text-gray-200">回</div>
-              </div>
-            ) : (
-              <div className="flex gap-2 mb-2">
-                <input type="number" min={1} value={timeSeconds} onChange={(e)=>setTimeSeconds(Number(e.target.value))} className={`w-32 ${ui.field}`} />
-                <div className="text-sm text-gray-200">秒</div>
-              </div>
-            )}
-
-            <div className="mb-2">
-              <div className="text-sm text-gray-200 mb-1">負荷（任意、kg）</div>
-              <input type="number" min={0} value={weight as any} onChange={(e)=>setWeight(e.target.value === '' ? '' : Number(e.target.value))} className={`w-32 ${ui.field}`} />
-            </div>
-
-            <label className="mb-2 flex items-center gap-2">
-              <span className="text-sm text-gray-200">きつさ（RPE 1〜10）</span>
-              <input type="range" min={1} max={10} step={1} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
-              <span className="ml-2 text-sm text-gray-200">{rpe}</span>
-              <span className="group relative inline-flex">
-                <button
-                  type="button"
-                  aria-label="RPEの目安"
-                  aria-describedby="rpe-help"
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-xs font-semibold text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  ?
-                </button>
-                <span
-                  id="rpe-help"
-                  role="tooltip"
-                  className="invisible absolute right-0 top-7 z-20 w-72 rounded border border-white/20 bg-gray-800 p-3 text-left text-xs leading-5 text-gray-100 opacity-0 shadow-lg group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-                >
-                  あと何回、フォームを保ってできそうだったかで決めます。RPE 10は余力なし、9はあと1回、8はあと2回、7はあと3回、6はあと4回以上が目安です。フォームが崩れる回数は数えません。
-                </span>
-              </span>
-            </label>
-
-            <div className="flex gap-2">
-              {(() => {
-                const canAdd = exerciseId && (setType === 'reps' ? (Number.isInteger(reps) && reps >= 1) : (Number.isInteger(timeSeconds) && timeSeconds >= 1))
-                return (
-                  <button
-                    type="button"
-                    onClick={addSetToPlan}
-                    disabled={!canAdd}
-                    aria-disabled={!canAdd}
-                    className={`px-3 py-1 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${!canAdd ? 'bg-gray-700 text-gray-300 cursor-not-allowed' : 'bg-green-700 text-white hover:bg-green-800'}`}
-                  >
-                    セットを追加
-                  </button>
-                )
-              })()}
-            </div>
-          </div>
-          
-
-          </form>
-
-          <section aria-labelledby="plan-sets-heading" className={ui.card}>
-            <h3 id="plan-sets-heading" className={ui.cardTitle}>作成中のセット</h3>
-            {planSets.length === 0 && <div className="text-sm text-gray-300">まだセットがありません</div>}
-            {planSets.length > 0 && (
-              <div className="overflow-x-auto rounded-lg ring-1 ring-white/10">
-                <table className="min-w-full text-sm text-left">
-                  <thead>
-                    <tr className="border-b border-white/10 bg-black/20 text-gray-300">
-                      <th className="px-4 py-2">#</th>
-                      <th className="px-4 py-2">種目</th>
-                      <th className="px-4 py-2">種類</th>
-                      <th className="px-4 py-2">値</th>
-                      <th className="px-4 py-2">負荷</th>
-                      <th className="px-4 py-2">RPE</th>
-                      <th className="px-4 py-2">推定kcal</th>
-                      <th className="px-4 py-2">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {planSets.map((s, i) => (
-                      <tr key={i} className="border-b border-white/10 last:border-b-0">
-                        <td className="px-4 py-3 align-top">{i+1}</td>
-                                <td className="px-4 py-3 align-top text-gray-100">{s.exerciseName || exercises.find(e=>e.id===s.exerciseId)?.name || s.exerciseId}</td>
-                        <td className="px-4 py-3 align-top">{s.type === 'reps' ? '回数' : '時間'}</td>
-                        <td className="px-4 py-3 align-top">{s.type === 'reps' ? `${s.reps} 回` : `${s.timeSeconds} 秒`}</td>
-                              <td className="px-4 py-3 align-top">{s.weight !== undefined ? `${s.weight} kg` : '-'}</td>
-                              <td className="px-4 py-3 align-top">{s.rpe ?? '-'}</td>
-                              <td className="px-4 py-3 align-top">{s.estimatedCaloriesKcal === undefined ? (s.calorieEnabled ? '保存時に計算' : '対象外') : `${s.estimatedCaloriesKcal} kcal`}</td>
-                        <td className="px-4 py-3 align-top">
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => moveSet(i, -1)} className="px-2 py-1 bg-gray-700 text-gray-100 hover:bg-gray-600 rounded">↑</button>
-                            <button type="button" onClick={() => moveSet(i, 1)} className="px-2 py-1 bg-gray-700 text-gray-100 hover:bg-gray-600 rounded">↓</button>
-                            <button type="button" onClick={() => removeSet(i)} className="px-2 py-1 bg-red-700 text-white hover:bg-red-800 rounded">削除</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          <section aria-labelledby="plan-run-heading" className={ui.card}>
-            <h3 id="plan-run-heading" className={ui.cardTitle}>実行</h3>
-            {notice && (
-              <div role="status" className={`mb-3 ${ui.success}`}>{notice}</div>
-            )}
-            {error && (
-              <div role="alert" className={`mb-3 ${ui.error}`}>{error}</div>
-            )}
-            <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={startSession} className={ui.btnSuccess}>{flow === 'step' ? 'この種目を実行' : '実行開始'}</button>
-            <button type="button" onClick={() => { setPlanSets([]); setError(null) }} className={ui.btnSecondary}>リセット</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setShowPlan(true)} className={ui.btnSecondary}>作成中のセット（{planSets.length}）</button>
+            <button type="button" onClick={startSession} className={ui.btnPrimary}>{flow === 'step' ? 'この種目を実行' : '実行開始'}</button>
             {flow === 'step' && completedSets.length > 0 && (
               <button type="button" onClick={() => finishAndSave(completedSets)} disabled={loading} className={ui.btnPrimary}>{loading ? '保存中...' : '完了して記録'}</button>
             )}
-            </div>
-            {flow === 'step' && completedSets.length > 0 && planSets.length > 0 && (
-              <p className={`mt-2 ${ui.muted}`}>「完了して記録」では、実行を終えた種目だけを保存します。</p>
-            )}
-          </section>
-        </div>
+          </div>
+          {planSets.length > 0 && (
+            <p className={ui.muted}>{groupSets(planSets).map((g) => `${g.name}×${g.count}`).join('、')}</p>
+          )}
+          {flow === 'step' && completedSets.length > 0 && planSets.length > 0 && (
+            <p className={ui.muted}>「完了して記録」では、実行を終えた種目だけを保存します。</p>
+          )}
+        </form>
       )}
+
+      <Modal open={showPlan} title="作成中のセット" onClose={() => setShowPlan(false)}>
+        {planSets.length === 0 && <div className="text-sm text-gray-300">まだセットがありません</div>}
+        {planSets.length > 0 && (
+          <ol className="divide-y divide-white/10 rounded-lg ring-1 ring-white/10">
+            {planSets.map((s, i) => (
+              <li key={i} className="flex items-center gap-2 px-3 py-2 text-sm">
+                <span className="w-5 shrink-0 text-gray-300">{i+1}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-gray-100">{s.exerciseName || exercises.find(e=>e.id===s.exerciseId)?.name || s.exerciseId}</div>
+                  <div className="text-xs text-gray-300">
+                    {[
+                      s.type === 'reps' ? `${s.reps} 回` : `${s.timeSeconds} 秒`,
+                      s.weight !== undefined ? `${s.weight} kg` : null,
+                      `RPE ${s.rpe ?? '-'}`,
+                      s.estimatedCaloriesKcal === undefined ? (s.calorieEnabled ? '保存時にkcal計算' : 'kcal対象外') : `${s.estimatedCaloriesKcal} kcal`,
+                    ].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <button type="button" aria-label={`セット${i+1}を上へ`} onClick={() => moveSet(i, -1)} className="px-2 py-1 bg-gray-700 text-gray-100 hover:bg-gray-600 rounded">↑</button>
+                  <button type="button" aria-label={`セット${i+1}を下へ`} onClick={() => moveSet(i, 1)} className="px-2 py-1 bg-gray-700 text-gray-100 hover:bg-gray-600 rounded">↓</button>
+                  <button type="button" aria-label={`セット${i+1}を削除`} onClick={() => removeSet(i)} className="px-2 py-1 bg-red-700 text-white hover:bg-red-800 rounded">×</button>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+        {pendingMenuSets.length > 0 && (
+          <p className={`mt-2 ${ui.muted}`}>このあとの種目: {splitGroups(pendingMenuSets).join(' → ')}</p>
+        )}
+        {planSets.length > 0 && (
+          <div className="mt-3 flex justify-end">
+            <button type="button" onClick={() => { setPlanSets([]); setError(null) }} className={`${ui.btnDanger} ${ui.btnSmall}`}>すべて削除</button>
+          </div>
+        )}
+      </Modal>
 
       {inSession && (
         <div className={`max-w-2xl ${ui.card}`}>
@@ -708,10 +722,12 @@ export default function Record(): JSX.Element {
         </div>
       )}
 
-      {/* メニュー作成⇔実行を切り替えても再生が止まらないよう、両方の表示の外に置く */}
-      <div className="mt-4 max-w-2xl">
-        <MusicPlayer duckSignal={duckSignal} />
-      </div>
+      {/* 音楽は実行中だけ表示する。1種目ずつ実行で次の種目を設定する間は隠して一時停止し、次の実行で再開する */}
+      {musicPlaylistId && (
+        <div className={inSession ? 'mt-4 max-w-2xl' : 'hidden'}>
+          <MusicPlayer key={musicPlaylistId} playlistId={musicPlaylistId} autoPlay suspended={!inSession} duckSignal={duckSignal} />
+        </div>
+      )}
     </div>
   )
 }
