@@ -20,7 +20,8 @@ describe('apiRequest', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('/api/v1/exercises?q=a')
     expect(init.method).toBe('GET')
-    expect(init.credentials).toBe('same-origin')
+    // 別ドメインのAPI（GitHub Pages + Render）でもセッションクッキーを送る
+    expect(init.credentials).toBe('include')
   })
 
   test('fetches a CSRF token and sends it on state-changing requests', async () => {
@@ -40,6 +41,18 @@ describe('apiRequest', () => {
     const headers = new Headers(init.headers)
     expect(headers.get('X-XSRF-TOKEN')).toBe('abc=123')
     expect(headers.get('Content-Type')).toBe('application/json')
+  })
+
+  test('prefers the CSRF token from the response header, for an API on another domain', async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (url === '/api/v1/auth/csrf') return new Response(null, { status: 204, headers: { 'X-XSRF-TOKEN': 'masked-token' } })
+      return jsonResponse({ id: 1 }, 201)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiRequest('/routines', { method: 'POST', body: '{}' })
+
+    expect(new Headers((fetchMock.mock.calls[1][1] as RequestInit).headers).get('X-XSRF-TOKEN')).toBe('masked-token')
   })
 
   test('returns undefined for 204 responses', async () => {

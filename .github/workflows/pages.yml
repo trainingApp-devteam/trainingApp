@@ -1,0 +1,61 @@
+name: Deploy frontend to GitHub Pages
+
+# main への push（frontend 配下の変更）または手動実行で、画面を GitHub Pages へ公開する。
+# 事前にリポジトリの Settings > Pages で Source を「GitHub Actions」にし、
+# Settings > Secrets and variables > Actions > Variables に API_BASE_URL（例: https://trainingapp-api.onrender.com）を登録する。
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'frontend/**', '.github/workflows/pages.yml' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          # https://<owner>.github.io/<repo>/ で配信するため、リポジトリ名をベースパスにする
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then echo "リポジトリ変数 API_BASE_URL が未設定です" >&2; exit 1; fi
+          npm run build
+          # GitHub Pages はSPAの直リンク（/record など）を404にするため、同じ index.html を 404.html として置く
+          cp dist/index.html dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

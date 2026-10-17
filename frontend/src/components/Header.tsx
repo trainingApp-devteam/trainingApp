@@ -61,7 +61,7 @@ export default function Header(): JSX.Element {
     <header className="w-full bg-gray-800 text-white shadow-sm">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-3">
         <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-bold">
-          <img src="/otter.svg" alt="" width={36} height={36} className="h-9 w-9" />
+          <img src={`${import.meta.env.BASE_URL}otter.svg`} alt="" width={36} height={36} className="h-9 w-9" />
           TrainingApp
         </Link>
         <div className="flex min-w-0 items-center gap-3">

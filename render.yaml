@@ -1,0 +1,43 @@
+# Render の Blueprint（API のみ）。画面は GitHub Pages、DB は Aiven for MySQL（無料プラン）を使う。
+# 手順: docs/operations/deployment-pages-render.md
+services:
+  - type: web
+    name: trainingapp-api
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    branch: main
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: SERVER_PORT
+        value: "8080"
+      # 無料プラン（メモリ512MB）に収まるようにJVMのメモリを抑える
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k"
+      - key: DB_POOL_MAX
+        value: "5"
+      - key: DB_POOL_MIN_IDLE
+        value: "1"
+      # 画面（GitHub Pages）とAPIが別ドメインのため、Cookieを SameSite=None; Secure にしてCORSを許可する
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: SESSION_COOKIE_SAME_SITE
+        value: none
+      - key: TRAININGAPP_CORS_ALLOWED_ORIGINS
+        sync: false # 例: https://<owner>.github.io
+      # Aiven for MySQL の接続情報（例: jdbc:mysql://<host>:<port>/defaultdb?sslMode=REQUIRED&serverTimezone=UTC）
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # 初回起動で管理者を作成したら、Renderの画面から削除する
+      - key: TRAININGAPP_ADMIN_USERNAME
+        sync: false
+      - key: TRAININGAPP_ADMIN_PASSWORD
+        sync: false

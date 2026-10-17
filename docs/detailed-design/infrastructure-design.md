@@ -85,6 +85,18 @@ PCのブラウザーは`http://localhost:5173`でアクセスする。frontend�
 
 Oracle Cloud Always Freeを利用する場合は、無料枠の詳細と回収条件を公式文書で確認する。MySQL互換DB候補としてTiDB Cloud Starter等も調査対象にできるが、MySQLと全機能・運用挙動が同じとはみなさず、SQL互換性とマイグレーションを検証する。無料枠の金額・条件は変更されうるため、契約前に公式価格表・規約を確認し、確認日を記録する。
 
+### 4.1 採用する公開構成: GitHub Pages + Render + Aiven for MySQL（2026-10-18）
+
+利用者の要望により、サーバーを持たない無料枠の構成で公開する。手順は[GitHub Pages + Render 版デプロイ手順](../operations/deployment-pages-render.md)。
+
+| 要素 | サービス | 備考 |
+| --- | --- | --- |
+| 画面 | GitHub Pages（`.github/workflows/pages.yml`） | `VITE_BASE_PATH=/<repo>/`、`VITE_API_BASE_URL`でビルド。SPAの直リンク用に`404.html`を置く。非公開リポジトリでは有料プランが必要 |
+| API | Render Free（`render.yaml`、`backend/Dockerfile`） | 15分無通信で停止し起動に約1分。月750時間。JVMは`MaxRAMPercentage=70`・SerialGC |
+| DB | Aiven for MySQL Free | MySQL 8、1 CPU・1GB RAM・1GBストレージ、単一ノード。無通信が続くと通知後に停止。`sslMode=REQUIRED`で接続。全テーブルに主キーがあるため`sql_require_primary_key`に対応済み |
+
+画面とAPIが別オリジンになるため、5章の「同一オリジン」の推奨から外れる。CORS（許可オリジンを限定、資格情報付き）、`SameSite=None; Secure`のCookie、レスポンスヘッダーによるCSRFトークンの受け渡しで対応する（API設計書）。別サイトのCookieを制限するブラウザー（Safari等）でログインを保てない場合は、独自ドメインで画面とAPIを同一サイトにそろえる。上記の無料枠は2026-10-18時点の公開情報で、採用前に公式で再確認する。
+
 ## 5. 公開環境の構成要件
 
 - HTTPSを必須とする。
