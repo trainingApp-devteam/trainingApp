@@ -48,7 +48,8 @@ yyyy-mm-dd 修正内容の概要
 
 `docs/detailed-design/README.md` の変更ルールに従う。特に次を守る。
 
-- 仕様・画面・APIを変えたら、同じ変更で関係する設計書（業務機能・画面・API・データ・テスト設計書）と WBS（`docs/wbs/project-wbs.md`）を更新する。WBSには作業行（状態・完了日・備考）を追加または更新する。
+- 仕様・画面・APIを変えたら、関係する設計書（業務機能・画面・API・データ・テスト設計書）と WBS（`docs/wbs/project-wbs.md`）を更新する。更新は修正のたびではなく、`main` へのプルリクエストを作るときに、そのブランチの変更をまとめて1回行う（プルリクエストに含まれていればよい）。WBSには機能単位で作業行（状態・完了日・備考）を追加または更新する。
+- 例外として、`docs/openapi.yaml`（下記）と Flyway マイグレーションは実装と同じコミットで変える（テスト・起動が実装との一致を前提にしているため）。
 - APIのパスやメソッドを増減したら `docs/openapi.yaml` も更新する。Backendのテスト（`generatedApiDocsMatchTheOpenApiContract`）が実装との差分を検出して失敗する。
 - DBを変えるときは Flyway の新しい番号のマイグレーション（`backend/src/main/resources/db/migration/V{n}__説明.sql`）を追加する。既存のマイグレーションは書き換えない。H2（MySQL互換モード）とMySQL 8.4の両方で動くSQLにする。データを削除するマイグレーションは、適用前にバックアップが必要な旨を設計書に書く。
 - 動作を変えたら、対応するテストを追加・更新する。

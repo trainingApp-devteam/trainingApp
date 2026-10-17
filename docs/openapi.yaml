@@ -242,6 +242,23 @@ paths:
               schema: { $ref: '#/components/schemas/CalorieEstimate' }
         '400': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /calorie-estimates/preview:
+    post:
+      tags: [Calorie estimates]
+      summary: Estimate calories for one planned set without storing it (no estimateId)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CalorieEstimateRequest' }
+      responses:
+        '200':
+          description: Estimate (not stored)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CalorieEstimate' }
+        '400': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /statistics/exercises:
     get:
       tags: [Statistics]
@@ -557,6 +574,7 @@ components:
           type: array
           description: Recording types that can be estimated (REP for reps, MINUTE for time). Cardio machines have MINUTE only.
           items: { type: string, enum: [REP, MINUTE] }
+        recordType: { type: string, enum: [REP, MINUTE], description: Fixed recording type of the exercise (REP for reps, MINUTE for time). Cardio machines are MINUTE. }
     RecordedExercise:
       type: object
       properties:

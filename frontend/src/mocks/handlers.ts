@@ -14,6 +14,7 @@ const exercises = [
   // 標準種目はすべて推定対象。有酸素マシンは時間のみ
   calorieEnabled: true,
   calorieBases: category === '有酸素' ? ['MINUTE'] : ['REP', 'MINUTE'],
+  recordType: category === '有酸素' ? 'MINUTE' : 'REP',
 }))
 
 let nextEstimateId = 1

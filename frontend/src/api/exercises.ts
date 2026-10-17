@@ -1,7 +1,7 @@
 import { apiRequest } from './client'
 
 export type CalorieBasis = 'REP' | 'MINUTE'
-type BackendExercise = { id: number; name: string; category?: string | null; calorieEnabled?: boolean; calorieBases?: CalorieBasis[] }
+type BackendExercise = { id: number; name: string; category?: string | null; calorieEnabled?: boolean; calorieBases?: CalorieBasis[]; recordType?: CalorieBasis }
 export type Exercise = {
   id: string
   name: string
@@ -9,6 +9,8 @@ export type Exercise = {
   calorieEnabled?: boolean
   // 推定できる記録形式。有酸素マシンは時間(MINUTE)のみ
   calorieBases?: CalorieBasis[]
+  // 種目ごとに決まった記録形式（回数/時間）。メニュー作成では変更できない
+  recordType?: 'reps' | 'time'
 }
 
 function mapExercise(exercise: BackendExercise): Exercise {
@@ -18,6 +20,7 @@ function mapExercise(exercise: BackendExercise): Exercise {
     group: exercise.category || undefined,
     calorieEnabled: exercise.calorieEnabled === true,
     calorieBases: exercise.calorieBases || [],
+    recordType: exercise.recordType === 'MINUTE' ? 'time' : 'reps',
   }
 }
 
@@ -35,6 +38,13 @@ export async function listExerciseGroups(): Promise<Array<{ id: string; name: st
   return [...groups].sort().map((group) => ({ id: group, name: group }))
 }
 
+
+// 種目の記録形式。未取得の場合は、時間でしか推定できない種目（有酸素マシン）を時間、それ以外を回数とする
+export function recordTypeOf(exercise: Pick<Exercise, 'recordType' | 'calorieBases'> | undefined): 'reps' | 'time' {
+  if (exercise?.recordType) return exercise.recordType
+  const bases = exercise?.calorieBases || []
+  return bases.includes('MINUTE') && !bases.includes('REP') ? 'time' : 'reps'
+}
 
 // そのセットの記録形式（回数/時間）で消費カロリーを推定できるか
 export function canEstimate(exercise: Pick<Exercise, 'calorieEnabled' | 'calorieBases'> | undefined, type: 'reps' | 'time'): boolean {

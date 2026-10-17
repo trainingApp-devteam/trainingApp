@@ -54,7 +54,7 @@ describe('Menu page', () => {
     await user.click(within(screen.getByRole('group', { name: '種目' })).getByRole('button', { name: /スクワット/ }))
 
     expect(screen.getByLabelText('スクワットの回数')).toHaveValue(8)
-    expect(screen.getByLabelText('スクワットの記録形式')).toHaveValue('reps')
+    expect(screen.queryByLabelText('スクワットの記録形式')).not.toBeInTheDocument()
   })
 
   test('adds cardio machines by time, fixed because reps cannot be estimated', async () => {
@@ -63,7 +63,7 @@ describe('Menu page', () => {
     await user.click(screen.getByRole('button', { name: /トレッドミル/ }))
 
     expect(screen.getByLabelText('トレッドミルの秒数')).toHaveValue(60)
-    expect(screen.getByLabelText('トレッドミルの記録形式')).toBeDisabled()
+    expect(screen.queryByLabelText('トレッドミルの回数')).not.toBeInTheDocument()
   })
 
   test('edits reps, time, and weight in the list and saves them', async () => {
@@ -83,18 +83,15 @@ describe('Menu page', () => {
     expect(await screen.findByText('ベンチプレス(10回/60kg)')).toBeInTheDocument()
   })
 
-  test('switches a row to time and blocks saving an empty value', async () => {
+  test('blocks saving an empty value', async () => {
     const user = await openForm()
-    await user.type(screen.getByRole('textbox'), '体幹')
+    await user.type(screen.getByRole('textbox'), '胸の日')
     await user.click(screen.getByRole('button', { name: /ベンチプレス/ }))
 
-    await user.selectOptions(screen.getByLabelText('ベンチプレスの記録形式'), 'time')
-    expect(screen.getByLabelText('ベンチプレスの秒数')).toHaveValue(60)
-
-    await user.clear(screen.getByLabelText('ベンチプレスの秒数'))
+    await user.clear(screen.getByLabelText('ベンチプレスの回数'))
     await user.click(screen.getByRole('button', { name: '保存' }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent('「ベンチプレス」の時間は1以上の整数を入力してください')
+    expect(screen.getByRole('alert')).toHaveTextContent('「ベンチプレス」の回数は1以上の整数を入力してください')
     expect(saveRoutine).not.toHaveBeenCalled()
   })
 

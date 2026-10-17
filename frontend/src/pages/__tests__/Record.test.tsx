@@ -20,6 +20,7 @@ vi.mock('../../api/exercises', async (importOriginal) => {
 vi.mock('../../api/records', () => ({
   createRecord: vi.fn(async () => ({ id: 'r1' })),
   withCalorieEstimates: vi.fn(async (sets: unknown[]) => sets),
+  previewCalories: vi.fn(async () => null),
 }))
 vi.mock('../../api/routines', () => ({ listRoutines: vi.fn(async () => []) }))
 vi.mock('../../api/bodyMeasurements', () => ({ getLatestBodyWeight: vi.fn(async () => null) }))
@@ -80,7 +81,7 @@ describe('Record page', () => {
 
     const dialog = await openPlan(user)
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(2)
-    expect(within(dialog).getAllByText('10 回 · 40 kg · RPE 6 · kcal対象外')).toHaveLength(2)
+    expect(within(dialog).getAllByText('10 回 · 40 kg · 予定RPE 6 · kcal対象外')).toHaveLength(2)
 
     await user.click(within(dialog).getByRole('button', { name: 'セット1を削除' }))
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(1)
@@ -99,15 +100,15 @@ describe('Record page', () => {
     expect(within(dialog).getByText('まだセットがありません')).toBeInTheDocument()
   })
 
-  test('switches between reps and time with a unit select instead of radio buttons', async () => {
+  test('uses the record type fixed for each exercise, with no way to change it', async () => {
     const user = await renderRecord()
 
-    expect(screen.getByLabelText('記録形式')).toHaveValue('reps')
-    await user.selectOptions(screen.getByLabelText('記録形式'), 'time')
-    expect(screen.getByLabelText('秒数')).toHaveValue(60)
+    expect(screen.getByLabelText('回数')).toHaveValue(8)
+    expect(screen.queryByLabelText('記録形式')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'セットを追加' }))
 
-    expect(within(await openPlan(user)).getByText(/^60 秒/)).toBeInTheDocument()
+    expect(within(await openPlan(user)).getByText(/^8 回/)).toBeInTheDocument()
   })
 
   test('provides RPE guidance without showing the estimation body weight', async () => {
@@ -154,15 +155,14 @@ describe('Record page', () => {
 
   test('records cardio machines by time only, because reps cannot be estimated', async () => {
     const exercises = await import('../../api/exercises')
-    vi.mocked(exercises.searchExercises).mockImplementation((async () => [{ id: 'e3', name: 'トレッドミル', group: '有酸素', calorieEnabled: true, calorieBases: ['MINUTE'] }]) as any)
+    vi.mocked(exercises.searchExercises).mockImplementation((async () => [{ id: 'e3', name: 'トレッドミル', group: '有酸素', calorieEnabled: true, calorieBases: ['MINUTE'], recordType: 'time' }]) as any)
     try {
       render(<MemoryRouter><Record /></MemoryRouter>)
       await screen.findByRole('option', { name: 'トレッドミル' })
 
-      expect(await screen.findByLabelText('秒数')).toBeInTheDocument()
-      expect(screen.getByLabelText('記録形式')).toHaveValue('time')
-      expect(screen.getByLabelText('記録形式')).toBeDisabled()
-      expect(screen.getByText('この種目は消費カロリーを推定するため、時間で記録します。')).toBeInTheDocument()
+      expect(await screen.findByLabelText('秒数')).toHaveValue(60)
+      expect(screen.queryByLabelText('回数')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('記録形式')).not.toBeInTheDocument()
     } finally {
       vi.mocked(exercises.searchExercises).mockImplementation((async (_q = '', category?: string) => [{ id: 'e1', name: '既存種目', group: category || 'その他' }]) as any)
     }

@@ -367,6 +367,38 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void previewsCaloriesWithTheSameFormulaWithoutStoringThem() throws Exception {
+        MockHttpSession session = login(owner);
+        long benchPress = jdbc.queryForObject(
+                "SELECT id FROM exercises WHERE exercise_code = 'bench_press'", Long.class);
+        Integer before = jdbc.queryForObject("SELECT COUNT(*) FROM exercise_calorie_estimates", Integer.class);
+
+        mockMvc.perform(post("/api/v1/calorie-estimates/preview")
+                        .session(session)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"exerciseId\":" + benchPress + ",\"basis\":\"REP\",\"rpe\":8,\"bodyWeightKg\":60,\"reps\":10}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estimateId").doesNotExist())
+                .andExpect(jsonPath("$.estimatedCaloriesKcal").value(3.15));
+
+        org.junit.jupiter.api.Assertions.assertEquals(before,
+                jdbc.queryForObject("SELECT COUNT(*) FROM exercise_calorie_estimates", Integer.class));
+
+        mockMvc.perform(post("/api/v1/calorie-estimates/preview")
+                        .session(session)
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"exerciseId\":" + benchPress + ",\"basis\":\"REP\",\"rpe\":8,\"bodyWeightKg\":10,\"reps\":10}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/v1/calorie-estimates/preview")
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void storesCalorieEstimateOnSetAndRejectsOthersEstimate() throws Exception {
         MockHttpSession ownerSession = login(owner);
         MockHttpSession otherSession = login(other);
@@ -494,11 +526,18 @@ class ApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].calorieEnabled").value(true))
                 .andExpect(jsonPath("$[0].calorieBases.length()").value(1))
-                .andExpect(jsonPath("$[0].calorieBases[0]").value("MINUTE"));
+                .andExpect(jsonPath("$[0].calorieBases[0]").value("MINUTE"))
+                .andExpect(jsonPath("$[0].recordType").value("MINUTE"));
         mockMvc.perform(get("/api/v1/exercises").param("q", "ダンベル").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].calorieBases[0]").value("REP"))
-                .andExpect(jsonPath("$[0].calorieBases[1]").value("MINUTE"));
+                .andExpect(jsonPath("$[0].calorieBases[1]").value("MINUTE"))
+                .andExpect(jsonPath("$[0].recordType").value("REP"));
+
+        // 種目ごとに記録形式が1つ決まっており、有酸素マシンだけが時間
+        Integer timeExercises = jdbc.queryForObject("SELECT COUNT(*) FROM exercises WHERE record_type = 'MINUTE'", Integer.class);
+        Integer cardio = jdbc.queryForObject("SELECT COUNT(*) FROM exercises WHERE category = '有酸素'", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(cardio, timeExercises);
     }
 
     @Test

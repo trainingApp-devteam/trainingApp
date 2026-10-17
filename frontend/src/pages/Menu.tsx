@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { searchExercises } from '../api/exercises'
+import { recordTypeOf, searchExercises } from '../api/exercises'
 import type { Exercise } from '../api/exercises'
 import { deleteRoutine, listRoutines, Routine, RoutineExercise, saveRoutine } from '../api/routines'
 import { ui } from '../styles/ui'
@@ -9,12 +9,6 @@ type MenuItem = Routine
 
 const DEFAULT_REPS = 8
 const DEFAULT_SECONDS = 60
-
-// 回数では推定できない（時間のみ推定できる）種目。有酸素マシンが該当する
-function timeOnly(exercise: Exercise | undefined): boolean {
-  const bases = exercise?.calorieBases || []
-  return bases.includes('MINUTE') && !bases.includes('REP')
-}
 
 function describe(ex: MenuExercise): string {
   return `${ex.exerciseName || ex.exerciseId}(${ex.type === 'reps' ? `${ex.reps}回` : `${ex.timeSeconds}秒`}${ex.weight ? `/${ex.weight}kg` : ''})`
@@ -59,7 +53,8 @@ export default function Menu(): JSX.Element {
 
   // 種目を選んだら既定値のまま追加し、回数・時間・負荷は一覧の行で直す
   function addExercise(ex: Exercise) {
-    const added: MenuExercise = timeOnly(ex)
+    // 記録形式は種目ごとに決まっている
+    const added: MenuExercise = recordTypeOf(ex) === 'time'
       ? { exerciseId: ex.id, exerciseName: ex.name, type: 'time', timeSeconds: DEFAULT_SECONDS }
       : { exerciseId: ex.id, exerciseName: ex.name, type: 'reps', reps: DEFAULT_REPS }
     setExercises((s) => [...s, added])
@@ -67,12 +62,6 @@ export default function Menu(): JSX.Element {
 
   function updateExercise(idx: number, patch: Partial<MenuExercise>) {
     setExercises((s) => s.map((ex, i) => i === idx ? { ...ex, ...patch } : ex))
-  }
-
-  function changeType(idx: number, type: 'reps' | 'time') {
-    updateExercise(idx, type === 'reps'
-      ? { type, reps: DEFAULT_REPS, timeSeconds: undefined }
-      : { type, timeSeconds: DEFAULT_SECONDS, reps: undefined })
   }
 
   function moveExercise(idx: number, dir: -1 | 1) {
@@ -172,7 +161,6 @@ export default function Menu(): JSX.Element {
               <ul className="space-y-2 mb-2">
                 {exercises.map((ex, idx) => {
                   const label = ex.exerciseName || ex.exerciseId
-                  const fixedTime = timeOnly(catalog.find((c) => c.id === ex.exerciseId))
                   return (
                     <li key={`${ex.exerciseId}_${idx}`} className="flex flex-wrap items-center gap-2 rounded bg-gray-800/40 p-2">
                       <div className="min-w-[8rem] flex-1 font-medium text-sm text-gray-100">{label}</div>
@@ -187,16 +175,7 @@ export default function Menu(): JSX.Element {
                         }}
                         className={`w-20 ${ui.field}`}
                       />
-                      <select
-                        aria-label={`${label}の記録形式`}
-                        value={ex.type}
-                        disabled={fixedTime}
-                        onChange={(e) => changeType(idx, e.target.value as 'reps' | 'time')}
-                        className={ui.field}
-                      >
-                        <option value="reps">回</option>
-                        <option value="time">秒</option>
-                      </select>
+                      <span className="text-sm text-gray-200">{ex.type === 'reps' ? '回' : '秒'}</span>
                       <input
                         type="number"
                         min={0}

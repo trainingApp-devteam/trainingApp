@@ -54,9 +54,77 @@ public class CalorieController {
         }, id);
     }
 
+    // メニュー作成時の見積もり。保存時と同じ係数・式で計算するが、DBには保存しない
+    @PostMapping("/calorie-estimates/preview")
+    Map<String, Object> preview(@RequestBody Map<String, Object> body) {
+        Calculation c = calculate(body);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("exerciseId", c.exerciseId());
+        result.put("exerciseCode", c.rate().exerciseCode());
+        result.put("basis", c.basis());
+        result.put("rpe", c.rpe());
+        result.put("bodyWeightKg", c.bodyWeightKg());
+        result.put("activeSeconds", c.activeSeconds());
+        result.put("metValue", c.rate().metValue());
+        result.put("estimatedCaloriesKcal", c.calories());
+        result.put("note", NOTE);
+        return result;
+    }
+
     @PostMapping("/calorie-estimates")
     @Transactional
     ResponseEntity<Map<String, Object>> estimate(@RequestBody Map<String, Object> body, Authentication authentication) {
+        Calculation c = calculate(body);
+        String basis = c.basis();
+        int rpe = c.rpe();
+        BigDecimal bodyWeightKg = c.bodyWeightKg();
+        BigDecimal activeSeconds = c.activeSeconds();
+        BigDecimal calories = c.calories();
+        Rate rate = c.rate();
+
+        long userId = jdbc.queryForObject("SELECT id FROM users WHERE username = ?", Long.class, authentication.getName());
+        KeyHolder keys = new GeneratedKeyHolder();
+        jdbc.update(connection -> {
+            var statement = connection.prepareStatement("""
+                    INSERT INTO exercise_calorie_estimates
+                        (user_id, exercise_code, rate_id, basis, rpe, body_weight_kg,
+                         external_load_kg, reps, duration_seconds, active_seconds, estimated_calories_kcal)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, new String[] {"id"});
+            statement.setLong(1, userId);
+            statement.setString(2, rate.exerciseCode());
+            statement.setLong(3, rate.id());
+            statement.setString(4, basis);
+            statement.setInt(5, rpe);
+            statement.setBigDecimal(6, bodyWeightKg);
+            statement.setBigDecimal(7, c.externalLoadKg());
+            statement.setObject(8, c.reps());
+            statement.setObject(9, c.durationSeconds());
+            statement.setBigDecimal(10, activeSeconds);
+            statement.setBigDecimal(11, calories);
+            return statement;
+        }, keys);
+        Number key = keys.getKey();
+        if (key == null) {
+            throw new IllegalStateException("Calorie estimate insert did not return an identifier");
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("estimateId", key.longValue());
+        result.put("exerciseId", c.exerciseId());
+        result.put("exerciseCode", rate.exerciseCode());
+        result.put("basis", basis);
+        result.put("rpe", rpe);
+        result.put("bodyWeightKg", bodyWeightKg);
+        result.put("activeSeconds", activeSeconds);
+        result.put("metValue", rate.metValue());
+        result.put("estimatedCaloriesKcal", calories);
+        result.put("note", NOTE);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
+    // 入力を検証し、係数から消費カロリーを計算する（保存・見積もり共通）
+    private Calculation calculate(Map<String, Object> body) {
         long exerciseId = ApiValues.positiveLong(body.get("exerciseId"), "exerciseId");
         String basis = ApiValues.text(body, "basis", true, 10);
         if (!"REP".equals(basis) && !"MINUTE".equals(basis)) {
@@ -94,46 +162,7 @@ public class CalorieController {
                 .multiply(activeSeconds)
                 .divide(BigDecimal.valueOf(60), 8, RoundingMode.HALF_UP)
                 .setScale(2, RoundingMode.HALF_UP);
-
-        long userId = jdbc.queryForObject("SELECT id FROM users WHERE username = ?", Long.class, authentication.getName());
-        KeyHolder keys = new GeneratedKeyHolder();
-        jdbc.update(connection -> {
-            var statement = connection.prepareStatement("""
-                    INSERT INTO exercise_calorie_estimates
-                        (user_id, exercise_code, rate_id, basis, rpe, body_weight_kg,
-                         external_load_kg, reps, duration_seconds, active_seconds, estimated_calories_kcal)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, new String[] {"id"});
-            statement.setLong(1, userId);
-            statement.setString(2, rate.exerciseCode());
-            statement.setLong(3, rate.id());
-            statement.setString(4, basis);
-            statement.setInt(5, rpe);
-            statement.setBigDecimal(6, bodyWeightKg);
-            statement.setBigDecimal(7, externalLoadKg);
-            statement.setObject(8, reps);
-            statement.setObject(9, durationSeconds);
-            statement.setBigDecimal(10, activeSeconds);
-            statement.setBigDecimal(11, calories);
-            return statement;
-        }, keys);
-        Number key = keys.getKey();
-        if (key == null) {
-            throw new IllegalStateException("Calorie estimate insert did not return an identifier");
-        }
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("estimateId", key.longValue());
-        result.put("exerciseId", exerciseId);
-        result.put("exerciseCode", rate.exerciseCode());
-        result.put("basis", basis);
-        result.put("rpe", rpe);
-        result.put("bodyWeightKg", bodyWeightKg);
-        result.put("activeSeconds", activeSeconds);
-        result.put("metValue", rate.metValue());
-        result.put("estimatedCaloriesKcal", calories);
-        result.put("note", NOTE);
-        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+        return new Calculation(exerciseId, basis, rpe, bodyWeightKg, externalLoadKg, reps, durationSeconds, rate, activeSeconds, calories);
     }
 
     private Rate findRate(long exerciseId, String basis, int rpe) {
@@ -154,4 +183,7 @@ public class CalorieController {
     }
 
     private record Rate(long id, String exerciseCode, BigDecimal metValue, BigDecimal secondsPerRep) {}
+
+    private record Calculation(long exerciseId, String basis, int rpe, BigDecimal bodyWeightKg, BigDecimal externalLoadKg,
+            Integer reps, Integer durationSeconds, Rate rate, BigDecimal activeSeconds, BigDecimal calories) {}
 }

@@ -21,7 +21,7 @@ public class ExerciseController {
     private static final String CALORIE_BASES =
             "EXISTS (SELECT 1 FROM exercise_calorie_rates r WHERE r.exercise_code = e.exercise_code AND r.basis = 'REP' AND r.enabled = TRUE) AS rep_rate, "
             + "EXISTS (SELECT 1 FROM exercise_calorie_rates r WHERE r.exercise_code = e.exercise_code AND r.basis = 'MINUTE' AND r.enabled = TRUE) AS minute_rate";
-    private static final String SELECT = "SELECT id, name, category, description, calorie_enabled, " + CALORIE_BASES + " FROM exercises e ";
+    private static final String SELECT = "SELECT id, name, category, description, calorie_enabled, record_type, " + CALORIE_BASES + " FROM exercises e ";
 
     private final JdbcTemplate jdbc;
 
@@ -68,6 +68,8 @@ public class ExerciseController {
         result.put("description", row.getString("description"));
         result.put("calorieEnabled", calorieEnabled);
         result.put("calorieBases", calorieBases);
+        // 記録形式（REP=回数 / MINUTE=時間）。種目ごとに固定
+        result.put("recordType", row.getString("record_type"));
         return result;
     }
 }

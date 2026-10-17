@@ -12,6 +12,8 @@ export type SetItem = {
   rpe?: number
   bodyWeightKg?: number
   estimatedCaloriesKcal?: number
+  // メニュー作成時に予定のRPEで見積もった値（保存時は実行後のRPEで計算し直す）。nullは推定できない
+  plannedCaloriesKcal?: number | null
   calorieEstimateId?: number
   calorieNote?: string
 }
@@ -85,6 +87,29 @@ export type CalorieEstimate = {
 
 export async function createCalorieEstimate(body: CalorieEstimateRequest): Promise<CalorieEstimate> {
   return apiRequest<CalorieEstimate>('/calorie-estimates', { method: 'POST', body: JSON.stringify(body) })
+}
+
+// メニュー作成時の見積もり（保存時と同じ式。サーバーには保存されない）。推定できないセットはnull
+export async function previewCalories(set: SetItem, bodyWeightKg: number | null): Promise<number | null> {
+  const weight = set.bodyWeightKg ?? bodyWeightKg
+  if (!set.calorieEnabled || !set.exerciseId || !weight) return null
+  try {
+    const estimate = await apiRequest<CalorieEstimate>('/calorie-estimates/preview', {
+      method: 'POST',
+      body: JSON.stringify({
+        exerciseId: Number(set.exerciseId),
+        basis: set.type === 'reps' ? 'REP' : 'MINUTE',
+        rpe: set.rpe || 6,
+        bodyWeightKg: weight,
+        externalLoadKg: set.weight,
+        reps: set.type === 'reps' ? set.reps : undefined,
+        durationSeconds: set.type === 'time' ? set.timeSeconds : undefined,
+      }),
+    })
+    return Number(estimate.estimatedCaloriesKcal)
+  } catch {
+    return null
+  }
 }
 
 export async function listRecords(): Promise<RecordItem[]> {
