@@ -57,6 +57,7 @@
 - DBアクセスはJPAパラメーター化クエリ等を用い、SQL文字列連結を避ける。
 - HTML出力時はコンテキストに応じてエスケープする。
 - 消費カロリー値はクライアント入力を信用せず、サーバーが有効な係数とセット値から計算する。
+- 音楽再生のYouTube埋め込みは、利用者が「音楽を再生」を押すまで読み込まない（押すまでYouTubeへ通信しない）。埋め込みは`youtube-nocookie.com`を使う。配信サーバーは`Referrer-Policy: no-referrer`だが、YouTubeの埋め込みは参照元が無いと再生できないため、埋め込みのiframeだけ`referrerpolicy="strict-origin-when-cross-origin"`（送るのはオリジンのみ）とする。CSPを導入する場合は`frame-src https://www.youtube-nocookie.com`と`script-src https://www.youtube.com`を許可する。
 - IDOR対策として、子レコード操作でも親トレーニング記録の所有者まで検証する。
 - 身体情報は必要最小限のみ保存し、公開前にプライバシー告知・保存期間・削除要件を確認する。
 - DB接続はプライベートネットワークに限定し、DBポートをインターネットへ開放しない。

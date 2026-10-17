@@ -8,6 +8,7 @@ import { createRecord, withCalorieEstimates } from '../api/records'
 import type { SetItem } from '../api/records'
 import { listRoutines } from '../api/routines'
 import { localDateString } from '../utils/date'
+import MusicPlayer from '../components/MusicPlayer'
 // Spotify integration removed — restored original Record page
 // ExerciseSelect modal removed
 
@@ -28,6 +29,8 @@ export default function Record(): JSX.Element {
   // 1種目ずつの進め方で、実行を終えた種目のセット
   const [completedSets, setCompletedSets] = useState<SetItem[]>([])
   const [notice, setNotice] = useState<string | null>(null)
+  // タイマー終了音を鳴らすたびに増やし、音楽の音量を一時的に下げる
+  const [duckSignal, setDuckSignal] = useState(0)
 
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [date, setDate] = useState(() => localDateString())
@@ -395,7 +398,7 @@ export default function Record(): JSX.Element {
 
   // play a short beep when timer reaches 0
   useEffect(() => {
-    if (remaining === 0) playBeep()
+    if (remaining === 0) { playBeep(); setDuckSignal((n) => n + 1) }
   }, [remaining])
 
   return (
@@ -704,6 +707,11 @@ export default function Record(): JSX.Element {
           </div>
         </div>
       )}
+
+      {/* メニュー作成⇔実行を切り替えても再生が止まらないよう、両方の表示の外に置く */}
+      <div className="mt-4 max-w-2xl">
+        <MusicPlayer duckSignal={duckSignal} />
+      </div>
     </div>
   )
 }
