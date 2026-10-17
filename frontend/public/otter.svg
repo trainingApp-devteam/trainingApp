@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ダンベルを持ったカワウソ">
+  <title>TrainingApp マスコット（カワウソ）</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+    <radialGradient id="fur" cx="0.5" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#a87249"/>
+      <stop offset="1" stop-color="#7d4f31"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 背景（アプリアイコン用の角丸四角） -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="262" r="196" fill="#ffffff" opacity="0.08"/>
+
+  <!-- 首・胸（明るい毛） -->
+  <path d="M150 380c10-40 52-62 106-62s96 22 106 62v40H150z" fill="#8a5a3b"/>
+  <path d="M196 392c8-26 32-40 60-40s52 14 60 40v30H196z" fill="#ead2b0"/>
+
+  <!-- 小さく低い位置の耳 -->
+  <ellipse cx="96" cy="226" rx="24" ry="20" fill="#6b4329"/>
+  <ellipse cx="98" cy="228" rx="11" ry="9" fill="#c9926c"/>
+  <ellipse cx="416" cy="226" rx="24" ry="20" fill="#6b4329"/>
+  <ellipse cx="414" cy="228" rx="11" ry="9" fill="#c9926c"/>
+
+  <!-- 横に広く平たい頭 -->
+  <ellipse cx="256" cy="250" rx="168" ry="126" fill="url(#fur)"/>
+
+  <!-- 目の上の明るい毛（眉） -->
+  <ellipse cx="190" cy="214" rx="30" ry="12" fill="#c08a62" opacity="0.7"/>
+  <ellipse cx="322" cy="214" rx="30" ry="12" fill="#c08a62" opacity="0.7"/>
+
+  <!-- 口のまわりと顎の明るい毛 -->
+  <ellipse cx="256" cy="334" rx="92" ry="44" fill="#ead2b0"/>
+
+  <!-- ふくらんだひげの付け根 -->
+  <ellipse cx="226" cy="306" rx="44" ry="34" fill="#f6e6cf"/>
+  <ellipse cx="286" cy="306" rx="44" ry="34" fill="#f6e6cf"/>
+  <g fill="#7d4f31" opacity="0.55">
+    <circle cx="208" cy="300" r="3.5"/><circle cx="222" cy="312" r="3.5"/><circle cx="204" cy="318" r="3.5"/>
+    <circle cx="304" cy="300" r="3.5"/><circle cx="290" cy="312" r="3.5"/><circle cx="308" cy="318" r="3.5"/>
+  </g>
+
+  <!-- ひげ -->
+  <g stroke="#f6e6cf" stroke-width="4" stroke-linecap="round" opacity="0.9">
+    <path d="M186 302l-64-14M186 314l-66 4M190 326l-58 20"/>
+    <path d="M326 302l64-14M326 314l66 4M322 326l58 20"/>
+  </g>
+
+  <!-- ほっぺ -->
+  <ellipse cx="150" cy="282" rx="22" ry="13" fill="#f49a9a" opacity="0.6"/>
+  <ellipse cx="362" cy="282" rx="22" ry="13" fill="#f49a9a" opacity="0.6"/>
+
+  <!-- 目 -->
+  <circle cx="190" cy="242" r="20" fill="#24150c"/>
+  <circle cx="322" cy="242" r="20" fill="#24150c"/>
+  <circle cx="197" cy="234" r="7" fill="#ffffff"/>
+  <circle cx="329" cy="234" r="7" fill="#ffffff"/>
+  <circle cx="184" cy="250" r="2.8" fill="#ffffff" opacity="0.8"/>
+  <circle cx="316" cy="250" r="2.8" fill="#ffffff" opacity="0.8"/>
+
+  <!-- 横長の鼻と口 -->
+  <path d="M222 278c0-10 15-15 34-15s34 5 34 15-17 22-34 22-34-12-34-22z" fill="#2f1c12"/>
+  <ellipse cx="245" cy="272" rx="10" ry="4" fill="#ffffff" opacity="0.45"/>
+  <path d="M256 300v14M256 314c-5 12-18 15-28 10M256 314c5 12 18 15 28 10" fill="none" stroke="#2f1c12" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- ダンベル -->
+  <rect x="146" y="418" width="220" height="18" rx="9" fill="#e5e7eb"/>
+  <rect x="104" y="384" width="44" height="86" rx="12" fill="#f59e0b"/>
+  <rect x="88" y="398" width="20" height="58" rx="8" fill="#d97706"/>
+  <rect x="364" y="384" width="44" height="86" rx="12" fill="#f59e0b"/>
+  <rect x="404" y="398" width="20" height="58" rx="8" fill="#d97706"/>
+
+  <!-- ダンベルを握る前足 -->
+  <ellipse cx="204" cy="427" rx="32" ry="25" fill="#7d4f31"/>
+  <ellipse cx="308" cy="427" rx="32" ry="25" fill="#7d4f31"/>
+  <path d="M188 418v18M204 414v22M220 418v18M292 418v18M308 414v22M324 418v18" stroke="#5c3a24" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+</svg>
