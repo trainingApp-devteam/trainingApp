@@ -55,5 +55,13 @@ backend/.gradle-wrapper/
 backend/.gradle/
 backend/build/
 
+# Keep the Gradle Wrapper executable in the repository
+!backend/gradle/wrapper/gradle-wrapper.jar
+
 # Allow local overrides
 !/.env.example
+
+# Playwright
+playwright-report/
+test-results/
+!/.env.prod.example

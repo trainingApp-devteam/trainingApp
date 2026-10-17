@@ -25,7 +25,6 @@ erDiagram
     USERS ||--o{ INVITATIONS : creates
     USERS ||--o{ TRAINING_SESSIONS : owns
     USERS ||--o{ ROUTINES : owns
-    USERS ||--o{ EXERCISES : creates
     EXERCISES ||--o{ EXERCISE_CALORIE_RATES : has
     USERS ||--o{ BODY_MEASUREMENTS : records
     MEASUREMENT_TYPES ||--o{ BODY_MEASUREMENTS : classifies
@@ -33,7 +32,9 @@ erDiagram
     TRAINING_SESSIONS ||--|{ SESSION_EXERCISES : contains
     EXERCISES ||--o{ SESSION_EXERCISES : selected
     SESSION_EXERCISES ||--|{ SET_RECORDS : has
-    EXERCISE_CALORIE_RATES o|--o{ SET_RECORDS : estimates
+    EXERCISE_CALORIE_RATES ||--o{ EXERCISE_CALORIE_ESTIMATES : applied
+    USERS ||--o{ EXERCISE_CALORIE_ESTIMATES : requests
+    EXERCISE_CALORIE_ESTIMATES o|--o{ SET_RECORDS : referenced_by
     ROUTINES ||--|{ ROUTINE_EXERCISES : contains
     EXERCISES ||--o{ ROUTINE_EXERCISES : selected
 ```
@@ -52,6 +53,7 @@ erDiagram
 | `display_name` | VARCHAR(100) NOT NULL |  | 画面表示名 |
 | `role` | VARCHAR(20) NOT NULL | CHECK | `ADMIN`または`USER` |
 | `status` | VARCHAR(24) NOT NULL | CHECK | `PENDING_APPROVAL`, `ACTIVE`, `REJECTED` |
+| `height_cm` | DECIMAL(4,1) NULL | CHECK 50〜300 | 一度だけ登録する身長（V9）。推定用体重の列（V6）はV8で廃止し、体重は`body_measurements`の最新値を使う |
 | `created_at` | DATETIME(6) NOT NULL |  | 作成日時UTC |
 | `updated_at` | DATETIME(6) NOT NULL |  | 更新日時UTC |
 
@@ -76,30 +78,52 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 
 | カラム | 型・NULL | 制約 | 説明 |
 | --- | --- | --- | --- |
-| `id` | BIGINT NOT NULL | PK | 種目ID |
-| `owner_user_id` | BIGINT NULL | FK users, INDEX | NULLは全利用者共通の標準種目。値ありは登録者独自種目 |
+| `exercise_code` | VARCHAR(64) NOT NULL | PK | 標準種目の安定コード |
 | `name` | VARCHAR(100) NOT NULL |  | 種目名 |
-| `category` | VARCHAR(50) NULL | INDEX | 任意カテゴリ |
-| `description` | VARCHAR(500) NULL |  | 説明 |
-| `created_at` | DATETIME(6) NOT NULL |  | 作成日時UTC |
+| `exercise_group` | VARCHAR(50) NOT NULL | INDEX | 種目グループ |
+| `is_builtin` | BOOLEAN NOT NULL | DEFAULT TRUE | 標準種目か |
+| `calorie_enabled` | BOOLEAN NOT NULL | DEFAULT FALSE | 推定係数がある標準種目か |
+| `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 作成日時 |
 
-独自種目の同一利用者内名称重複を防ぐ制約を設ける。標準種目データはマイグレーションまたは冪等なseedで登録する。
+実装ではカロリー用の別テーブルは設けず、共通の`exercises`テーブル（V4）に`exercise_code`（UNIQUE、標準種目のみ）と`calorie_enabled`を追加している。種目は標準種目だけで、利用者が作成した種目を表していた`owner_user_id`列（FK・インデックスを含む）はV11で削除した。標準種目と推定可能フラグはFlywayで登録する。V10で器具名の項目（ダンベル、スミスマシン、パワーラック）とスクワットにも一般的な筋トレの係数を登録し、全標準種目を推定対象にした。
 
 ### 4.4 `exercise_calorie_rates`
 
 | カラム | 型・NULL | 制約 | 説明 |
 | --- | --- | --- | --- |
 | `id` | BIGINT NOT NULL | PK | 係数版ID |
-| `exercise_id` | BIGINT NOT NULL | FK exercises | 対象種目 |
+| `exercise_code` | VARCHAR(64) NOT NULL | FK exercises.exercise_code | 対象標準種目 |
 | `basis` | VARCHAR(10) NOT NULL | CHECK | `REP`または`MINUTE` |
-| `kcal_per_unit` | DECIMAL(10,5) NOT NULL | CHECK > 0 | 1回または1分あたり係数 |
-| `source` | VARCHAR(255) NOT NULL |  | 算出根拠・出典 |
-| `version` | INT NOT NULL | UNIQUE(exercise_id, basis, version) | 係数版 |
+| `rpe_min`, `rpe_max` | TINYINT NOT NULL | 1〜10、範囲重複なし | 適用するRPE帯 |
+| `met_value` | DECIMAL(4,2) NOT NULL | CHECK > 0 | MET係数 |
+| `seconds_per_rep` | DECIMAL(5,2) NULL | REPで正数、MINUTEでNULL | 1回の推定動作時間。初期値3秒 |
+| `source` | VARCHAR(500) NOT NULL |  | Compendium出典とRPE対応の推定条件 |
+| `version` | INT NOT NULL | UNIQUE(exercise_code, basis, rpe_min, rpe_max, version) | 係数版 |
 | `effective_from` | DATE NOT NULL |  | 適用開始日 |
 | `enabled` | BOOLEAN NOT NULL |  | 新規計算への適用可否 |
-| `created_at` | DATETIME(6) NOT NULL |  | 登録日時UTC |
+| `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 登録日時 |
 
-係数行は履歴を保持し、値の変更時は既存行を上書きせず新しい版を登録する。初期係数データは初期リリース前にseedする。
+V10で、筋トレ種目の各REP帯と同じMETの`MINUTE`行を追加した（時間で記録した筋トレセット用）。有酸素マシンには`REP`行を登録しない。カロリーは固定kcal/回ではなく、DBのMET、利用者体重、動作時間から計算する。METは2024 Adult Compendiumの活動区分を基準にし、個別種目への割当、RPE帯、3秒/回のテンポはアプリ側の推定仮定として出典欄に残す。係数改訂時は既存行を上書きせず新しい版を登録する。
+
+### 4.4.1 `exercise_calorie_estimates`
+
+| カラム | 型・NULL | 制約 | 説明 |
+| --- | --- | --- | --- |
+| `id` | BIGINT NOT NULL | PK | 推定記録ID |
+| `user_id` | BIGINT NOT NULL | FK users | 推定した利用者 |
+| `exercise_code` | VARCHAR(64) NOT NULL | FK exercises.exercise_code | 計算した標準種目 |
+| `rate_id` | BIGINT NOT NULL | FK exercise_calorie_rates | 適用係数版 |
+| `basis` | VARCHAR(10) NOT NULL | `REP`/`MINUTE` | 記録形式 |
+| `rpe` | TINYINT NOT NULL | 1〜10 | 計算に使用した負荷指標 |
+| `body_weight_kg` | DECIMAL(6,2) NOT NULL | 20〜300 | 計算に使用した体重 |
+| `external_load_kg` | DECIMAL(7,2) NULL | >= 0 | 入力された外部負荷。MET選択はRPEで行う |
+| `reps` | INT NULL | REP時のみ | 回数 |
+| `duration_seconds` | INT NULL | MINUTE時のみ | 有酸素運動の実施時間 |
+| `active_seconds` | DECIMAL(8,2) NOT NULL | > 0 | 計算に使った動作時間 |
+| `estimated_calories_kcal` | DECIMAL(10,2) NOT NULL | >= 0 | 小数第2位に丸めた推定値 |
+| `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 推定日時 |
+
+推定入力と結果をDBへ保存する。トレーニング記録のセットは`set_records.calorie_estimate_id`でこの推定を参照する。
 
 ### 4.5 `training_sessions`
 
@@ -134,11 +158,10 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 | `reps` | INT NULL | CHECK > 0 | 回数形式の値 |
 | `duration_seconds` | INT NULL | CHECK > 0 | 時間形式の値。秒 |
 | `weight_kg` | DECIMAL(7,2) NULL | CHECK >= 0 | 任意重量kg |
-| `calorie_rate_id` | BIGINT NULL | FK exercise_calorie_rates | 計算に適用した係数版 |
-| `estimated_calories_kcal` | DECIMAL(10,2) NULL | CHECK >= 0 | 記録時に計算して保存したセット別推定値 |
+| `calorie_estimate_id` | BIGINT NULL | FK exercise_calorie_estimates | このセットの推定結果。係数版・推定値は参照先に保存される |
 | `created_at` | DATETIME(6) NOT NULL |  | 作成日時UTC |
 
-CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NULLであることを保証する。重量はどちらの記録形式にも任意で付与できる。適用係数と推定値は記録時点のスナップショットとして保存し、係数マスタの改訂で過去値を再計算しない。
+CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NULLであることを保証する。重量はどちらの記録形式にも任意で付与できる。適用係数と推定値は`exercise_calorie_estimates`にスナップショットとして保存し、係数マスタの改訂で過去値を再計算しない。
 
 ### 4.8 `routines` と `routine_exercises`
 
@@ -159,7 +182,7 @@ CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NU
 | `min_value` | DECIMAL(10,3) NULL |  | 項目固有の最小値 |
 | `max_value` | DECIMAL(10,3) NULL |  | 項目固有の最大値 |
 
-初期seedは身長(cm)と体重(kg)。将来の単純な数値項目は項目マスタ追加とし、DB列追加を不要にする。
+seedは身長(cm)・体重(kg)・体脂肪率(%)（V3）。V9で身長`height_cm`を`enabled=false`とし、既存の身長測定は利用者ごとの最新値を`users.height_cm`へ移して削除した。将来の単純な数値項目は項目マスタ追加とし、DB列追加を不要にする。
 
 ### 4.10 `body_measurements`
 
@@ -190,7 +213,8 @@ CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NU
 - `training_sessions(user_id, training_date, created_at)` INDEX。
 - `session_exercises(session_id, display_order)` UNIQUE。
 - `set_records(session_exercise_id, set_number)` UNIQUE。
-- `exercise_calorie_rates(exercise_id, basis, version)` UNIQUE、および`(exercise_id, basis, enabled)` INDEX。
+- `exercise_calorie_rates(exercise_code, basis, rpe_min, rpe_max, version)` UNIQUE。
+- `session_exercises(exercise_id, session_id)` INDEX（種目別の履歴絞り込み）、`exercise_calorie_rates(exercise_code, basis, enabled)` INDEX、`exercise_calorie_estimates(user_id, created_at)` INDEX（V7）。
 - `routines(user_id, name)`は必要に応じて重複を禁止する。初期案では同名メニューを許可する。
 - `routine_exercises(routine_id, display_order)` UNIQUE。
 - `body_measurements(user_id, measurement_type_id, measured_at)` INDEX。
@@ -198,6 +222,7 @@ CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NU
 ## 7. マイグレーション
 
 - 全DDL変更はFlywayの番号付きマイグレーションで管理し、既存マイグレーションを書き換えない。
+- V9（身長のアカウント移行）、V10（全標準種目の係数・筋トレの時間係数）、V11（独自種目の廃止）を追加した。V9は身長測定を、V11は独自種目とそれを参照する記録のセット・メニューの種目（独自種目だけの記録は記録ごと）を削除するため、適用前にバックアップを取る。
 - 標準種目と初期測定項目のseedは、複数回適用しても重複しない方法にする。
 - ローカル・CIのテストDBは、本番DBと同じMySQLメジャーバージョンを使う。
 - マイグレーションの適用順、ロールバック可否、バックアップ要否をPRで説明する。

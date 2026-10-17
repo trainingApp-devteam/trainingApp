@@ -4,34 +4,36 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| バージョン | 1.0 |
-| 状態 | 初期公開案。VPS・ドメイン・バックアップ先は契約前に確定 |
+| バージョン | 1.2 |
+| 状態 | テスト環境案。公開候補と費用は将来検討用の参考情報 |
 | 作成日 | 2026-09-26 |
 | 関連文書 | [概要設計書](overview-design.md)、[インフラ・運用設計書](detailed-design/infrastructure-design.md) |
 | 対象読者 | 全開発者、インフラ担当、運用担当 |
 
 ## 2. アーキテクチャの決定方針
 
-初期公開は、**1台の低価格VPS上でDocker Composeを動かす構成**を第一候補とする。Reactの静的ファイル、Caddy、Java Spring Boot API、MySQLを同じVPS上に配置する。自宅PCを常時稼働させて公開する構成は、停電・回線・保守の影響が大きいため初期公開には採用しない。
+今回の対象は本番公開ではなく、テスト環境の構築である。最安案は既存の開発PCでDocker Composeを使い、React、Spring Boot、MySQLの3サービスを起動する構成で、追加のクラウド利用料・独自ドメイン費用は0円を目標とする。同一LAN外から一時アクセスする必要がある場合だけ、Cloudflare Quick Tunnelを追加する。
 
-具体的な候補は次のとおり。これは採用確定ではなく、料金・仕様を比較する際の基準案である。
+以下のVPS・ドメイン等は将来公開時に再検討する参考案であり、今回契約・選定する対象ではない。テスト中は架空データを使い、DBポートをインターネットへ公開しない。
 
-| 役割 | 初期候補 | 採用理由・留意点 |
+将来公開時に比較する候補は次のとおり。採用は確定しておらず、今回のテスト環境には適用しない。
+
+| 役割 | 将来公開時の候補 | 採用理由・留意点 |
 | --- | --- | --- |
 | ソース管理 | GitHub | ソース、設計書、レビューを共有 |
 | CI | GitHub Actions | PRでテストとイメージビルドを実施。無料枠は利用条件を確認 |
 | コンテナ保管 | GitHub Container Registry (GHCR) | CIで作った本番イメージをVPSへ渡す |
-| 公開サーバー | さくらのVPS等の日本リージョンVPS | 1台でComposeを学べ、MySQLを含めた配置を管理できる |
+| 公開サーバー | さくらのVPS 2GB（年額払い） | 月額換算を抑えつつ国内リージョンでCompose/MySQLを運用。メモリ監視と4GBへの増強判断が必要 |
 | OS | Ubuntu Server LTS等 | サポート期間、Docker対応、セキュリティ更新を確認 |
 | HTTPS/リバースプロキシ | Caddy | HTTPS終端、Let's Encrypt証明書管理、SPA配信とAPI振り分け |
 | TLS証明書 | Let's Encrypt | Caddyによる自動取得・更新を想定 |
 | アプリDB | MySQL | ローカル開発と公開のDB製品を統一 |
-| バックアップ保存 | VPSとは別のS3互換オブジェクトストレージ等 | 事業者・料金・暗号化・復元方法を別途選定 |
-| ドメイン/DNS | ドメイン登録事業者とDNSサービス | ドメイン料金、DNS管理、更新責任を公開前に決める |
+| バックアップ保存 | Cloudflare R2 | Standard 10GB-month等の無料枠内を想定。超過時の料金を監視 |
+| ドメイン/DNS | `.com`ドメイン + Cloudflare DNS | ドメインの更新価格を確認。DNSはCloudflare Freeを想定 |
 
 VPS、ドメイン、バックアップ保存には料金が発生する可能性がある。正確な月額料金、リージョン、メモリ、ディスク、バックアップ機能は契約時点で公式情報を確認する。無料枠を恒久的な前提にしない。
 
-## 3. 公開環境アーキテクチャ
+## 3. 参考：将来の公開環境アーキテクチャ
 
 ```mermaid
 flowchart TB
@@ -44,7 +46,7 @@ flowchart TB
     PC --> DNS
     DNS[.com domain: 約268円/月換算<br/>Cloudflare DNS: 0円] -->|HTTPS 443| ENTRY
 
-    subgraph HOST[さくらのVPS 4GB: 約3,227円/月換算<br/>年額38,720円]
+    subgraph HOST[さくらのVPS 2GB: 約1,594円/月換算<br/>年額19,118円]
         ENTRY[Public IP / OS firewall: 80/443公開、SSH接続元を制限]
         CADDY[Caddy + Let's Encrypt: ソフトウェア/証明書 0円]
         WEB[React build: Caddyから静的配信]
@@ -72,29 +74,32 @@ flowchart TB
     GHCR -->|frontend imageまたはstatic artifact| CADDY
 
     MYSQL -.->|暗号化済み定期バックアップ| BACKUP[Cloudflare R2: 10GB-month以下なら0円]
-    COST[合計目安: 約3,500円/月相当]
+    COST[合計目安: 約1,862円/月相当<br/>2GB VPS + .com年額按分]
 ```
 
-### 3.1 料金の目安（2026-09-26確認）
+### 3.1 料金の目安（2026-10-13確認）
 
 | サービス/項目 | 概算 | 見積もり条件 |
 | --- | ---: | --- |
-| さくらのVPS 4GB | 約3,227円/月 | 年額38,720円を12か月で按分。月払いの場合は異なる可能性がある。Java・MySQLを同居させるための推奨案 |
-| さくらのVPS 2GB（参考） | 約1,594円/月 | 年額19,118円の按分。約1,862円/月相当まで下がるが、JVM・MySQL・OSを同居させるにはメモリ余裕が小さいため非推奨 |
+| さくらのVPS 2GB | 約1,594円/月 | 年額19,118円を12か月で按分。今回の低額公開案。低頻度利用を前提にメモリ制限・負荷試験・監視を行う。2GBプランはSLA対象外 |
+| さくらのVPS 4GB（増強先） | 約3,227円/月 | 年額38,720円の按分。2GBでOOM、メモリ逼迫、応答遅延が発生した場合の移行先 |
 | `.com`ドメイン | 3,220円/年（約268円/月） | さくらのドメイン掲載価格。更新時価格、キャンペーン、TLD変更は別途確認 |
 | Cloudflare DNS | 0円 | Freeプランの範囲で利用する想定。ドメイン取得費用は別 |
 | Caddy / Let's Encrypt | 0円 | ソフトウェアと証明書の利用料。VPS運用作業は別 |
-| GitHub Actions | 0円の想定 | private repositoryのGitHub Free枠は月2,000 runner分。超過・より大きなrunnerは別料金 |
+| GitHub Actions | 0円の想定 | GitHub Freeのprivate repositoryは月2,000分まで。支出上限を設定して追加課金を防ぐ |
 | GHCR | 現行0円の想定 | GitHubはContainer registryのイメージ保管・帯域を現在無料としている。ポリシー変更に備えて契約時に再確認 |
 | Cloudflare R2バックアップ | 0円の想定 | Standard storage 10 GB-month、月100万Class A・1,000万Class B操作まで。超過分はStorageが$0.015/GB-month。Egressは無料 |
-| **合計** | **約3,495円/月相当（約3,500円）** | 4GB VPS + `.com`ドメインの年額按分。DNS、Caddy、証明書、規定内CI/バックアップ枠が無料の前提 |
+| **推奨案合計** | **約1,862円/月相当** | 2GB VPS + `.com`ドメインの年額按分。DNS、Caddy、証明書、規定内CI/バックアップ枠が無料の前提 |
+| Oracle Cloud Always Free | サーバー費用0円の想定 | A1 Computeは月1,500 OCPU時間・9,000 GB時間（合計2 OCPU/12GB相当）、Block Volume 200GB等が無料。独自ドメインは別途（`.com`なら約268円/月相当）。容量確保、回収、仕様変更のリスクがあり安定稼働を保証しない |
 
-この概算には、開発者の作業時間、個別サポート、バックアップ10GB超過、GitHub Actionsの無料枠超過、ドメイン価格改定は含めない。Cloudflare R2はバックアップ総量と操作数が無料枠内である場合に限り0円となる。VPSの年払いでは初回に年額の支払いが必要で、月払いの価格や最低利用期間は申込画面で確認する。価格は変わりうるため、契約直前に再確認する。
+2GB VPS案は、従来の4GB VPS案（約3,495円/月相当）より約1,633円/月、約47%低い。初回はVPS年額19,118円とドメイン年額3,220円の支払いが必要になる。概算には開発者の作業時間、バックアップ10GB超過、GitHub Actions無料枠超過、ドメイン価格改定は含めない。R2はバックアップ総量と操作数が無料枠内の場合に限り0円。契約時点の支払方法・最低利用期間・価格を申込画面で再確認する。
 
 参照した公式価格情報:
 - さくらのVPS料金: https://vps.sakura.ad.jp/specification/
-- さくらのドメイン料金: https://domain.sakura.ad.jp/
+- さくらのドメイン料金: https://domain.sakura.ad.jp/gtld/com/
 - Cloudflare R2料金: https://developers.cloudflare.com/r2/pricing/
+- Cloudflare Pagesの制限（静的配信を分離する場合）: https://developers.cloudflare.com/pages/platform/limits/
+- Oracle Cloud Always Freeリソース・回収条件: https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm
 - GitHub Actions料金: https://docs.github.com/en/billing/concepts/product-billing/github-actions
 - GitHub Packages/GHCR料金: https://docs.github.com/en/billing/concepts/product-billing/github-packages
 
@@ -155,24 +160,33 @@ flowchart LR
 - バックアップから別環境への復元テストを公開前に行う。CSVエクスポートは初期リリースに含めないため、利用者向け代替手段として扱わない。
 - 係数マスタの変更とアプリのバージョンを記録し、過去の消費カロリー推定値は記録時のスナップショットを維持する。
 
-## 7. 単一VPS案の評価
+## 7. 低額2GB VPS案の評価
 
 ### 利点
 
 - フロント、API、DBが同一のComposeネットワークにあり、構成と通信を理解しやすい。
-- 初期の少人数利用では構成が過剰になりにくい。
+- 3アカウント程度の低頻度利用なら、4GBプランより固定費を抑えて始められる。
 - ローカル開発と本番でDocker Compose/MySQLの概念を共通化できる。
 - DBを専用マネージドサービスに分離するより月額を抑えられる可能性がある。
 
 ### リスクと対策
 
 - VPS障害がフロント/API/DBすべてに影響する。別事業者のバックアップと復元手順を持つ。
-- OS・Docker・MySQLの更新を自分で管理する。更新前にバックアップとステージング確認を行う。
-- 無料ホスティングではない。VPS・ドメイン・外部バックアップの合計費用を契約前に提示する。
+- 2GBではJVM、MySQL、OSのメモリが競合しやすい。コンテナのメモリ上限とJVM heapを設定し、負荷試験・OOM監視を行う。継続的な逼迫があれば4GBへ増強する。
+- 2GBプランはSLA対象外。可用性要件が上がった場合は上位プランや別構成を検討する。
+- OS・Docker・MySQLの更新を自分で管理する。更新前にバックアップと復元確認を行う。
 - 単一ディスク障害・誤操作・ランサムウェアに備え、同一VPS内のコピーだけをバックアップとしない。
 - 停止やネットワーク断に備え、稼働監視と復旧手順を設ける。
 
-## 8. 将来の分離構成
+## 8. 無料枠と将来の分離構成
+
+### 8.1 Oracle Cloud Always Free案
+
+ComputeのA1無料枠にDocker Composeを配置し、Spring Boot、MySQL、Caddy、React静的ファイルを同居させれば、固定のサーバー料金を0円にできる可能性がある。2026-10-13確認時点で合計2 OCPU・12GBメモリ相当、Block Volume合計200GB等が無料枠だが、ホームリージョンでの容量確保が必要。
+
+Always Freeインスタンスは、7日間のCPU利用率（95パーセンタイル）が20%未満、ネットワーク利用率が20%未満、A1ではメモリ利用率も20%未満の場合にアイドルと判定され、Oracleに回収される可能性がある。無料枠の利用可否や回収条件も変わりうる。選ぶ場合はVPS外の暗号化バックアップを必須とし、停止・再作成を許容できる用途に限定する。R2無料枠を使っても、無停止や復元時間は保証されない。
+
+### 8.2 将来の分離構成
 
 利用者数、可用性、保守負荷、バックアップ要件が増えた場合に、次のようなマネージド構成へ移行できる。
 
@@ -184,11 +198,11 @@ flowchart LR
     DB -.managed backup.-> STORAGE[Separate backup storage]
 ```
 
-候補を採用する場合は、Javaの稼働時間・スリープ、無料枠/課金、DB互換性、リージョン、データ保持、バックアップ復元、外部接続制限を公式情報で確認する。TiDB Cloud Starter等のMySQL互換DBも候補だが、MySQLと全機能が同一とはみなさず、マイグレーション・統合テストを行う。
+Cloudflare PagesでReactを静的配信することもできるが、同一VPSから配信すれば構成が単純であり、今回の規模では分離してもVPS費用は下がらない。別オリジン化はCookie、CSRF、CORS、独自ドメイン設定を複雑にするため、初期案では採用しない。将来サービスを分離する場合は、Javaの稼働時間・スリープ、無料枠/課金、DB互換性、リージョン、データ保持、バックアップ復元、外部接続制限を公式情報で確認する。TiDB Cloud Starter等のMySQL互換DBも候補だが、MySQLと全機能が同一とはみなさず、マイグレーション・統合テストを行う。
 
-## 9. 実装前に確定する項目
+## 9. 将来公開時に確定する項目
 
-1. VPS事業者、契約プラン、配置リージョン、月額予算上限。
+1. 0円優先（Oracle Cloud、回収・容量リスクあり）か、継続公開向け2GB VPS（月約1,862円相当）かを決定。2GBのメモリ試験結果によって4GBへの増強を判断。
 2. ドメイン登録先、DNS管理先、更新責任者。
 3. VPS firewall、SSH接続元、管理者アカウント、OS更新方法。
 4. MySQL backupの頻度・保持期間・外部保存先と復元責任者。

@@ -1,0 +1,762 @@
+openapi: 3.0.3
+info:
+  title: TrainingApp API
+  version: '1.0.0'
+  description: >-
+    TrainingApp REST API. User-owned resources are scoped to the authenticated session.
+    Call GET /auth/csrf first and send the XSRF-TOKEN cookie value in the X-XSRF-TOKEN header
+    for every state-changing request, including login.
+servers:
+  - url: /api/v1
+tags:
+  - name: Authentication
+  - name: Invitations and administration
+  - name: Exercises
+  - name: Training sessions
+  - name: Body measurements
+  - name: Routines
+  - name: Statistics
+paths:
+  /auth/csrf:
+    get:
+      tags: [Authentication]
+      summary: Initialize the CSRF cookie
+      security: []
+      responses:
+        '204': { description: CSRF cookie issued }
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Create an authenticated session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Invalidate the current session
+      responses:
+        '204': { description: Session invalidated }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Rotate the current session identifier
+      responses:
+        '200':
+          description: Session rotated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get the current account
+      responses:
+        '200':
+          description: Current account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [Authentication]
+      summary: Change the display name and/or the height of the current account (only the given fields)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountUpdate' }
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/me/password:
+    put:
+      tags: [Authentication]
+      summary: Change the password after verifying the current one; the session identifier is rotated
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordChange' }
+      responses:
+        '204': { description: Password changed }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /invitations/accept:
+    post:
+      tags: [Invitations and administration]
+      summary: Accept a single-use invitation and submit an account for approval
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitationAcceptRequest' }
+      responses:
+        '201':
+          description: Account created in pending state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitationAccepted' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /admin/invitations:
+    post:
+      tags: [Invitations and administration]
+      summary: Issue a single-use invitation (Admin)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitationCreateRequest' }
+      responses:
+        '201':
+          description: Token is returned once
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invitation' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/users/pending:
+    get:
+      tags: [Invitations and administration]
+      summary: List accounts awaiting approval (Admin)
+      responses:
+        '200':
+          description: Pending accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PendingUser' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/users/{id}/activate:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Invitations and administration]
+      summary: Approve a pending account (Admin)
+      responses:
+        '200':
+          description: Account activated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserStatus' }
+        '404': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/users/{id}/reject:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Invitations and administration]
+      summary: Reject a pending account (Admin)
+      responses:
+        '200':
+          description: Account rejected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserStatus' }
+        '404': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/invitations/{id}/revoke:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Invitations and administration]
+      summary: Revoke an unused invitation (Admin)
+      responses:
+        '204': { description: Invitation revoked }
+        '404': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /exercises:
+    get:
+      tags: [Exercises]
+      summary: Search the built-in exercises (users cannot create, update, or delete exercises)
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: category, in: query, schema: { type: string, maxLength: 50 } }
+      responses:
+        '200':
+          description: Exercises
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Exercise' }
+  /exercises/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Exercises]
+      summary: Get a built-in exercise
+      responses:
+        '200':
+          description: Exercise
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exercise' }
+        '404': { $ref: '#/components/responses/Error' }
+  /exercises/{id}/calorie-rates:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Calorie estimates]
+      summary: List enabled calorie rates of an exercise
+      responses:
+        '200':
+          description: Rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CalorieRate' }
+  /calorie-estimates:
+    post:
+      tags: [Calorie estimates]
+      summary: Estimate and store calories for one set
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CalorieEstimateRequest' }
+      responses:
+        '201':
+          description: Estimate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CalorieEstimate' }
+        '400': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /calorie-estimates/preview:
+    post:
+      tags: [Calorie estimates]
+      summary: Estimate calories for one planned set without storing it (no estimateId)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CalorieEstimateRequest' }
+      responses:
+        '200':
+          description: Estimate (not stored)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CalorieEstimate' }
+        '400': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /statistics/exercises:
+    get:
+      tags: [Statistics]
+      summary: List the exercises the current user has recorded, most recent first
+      responses:
+        '200':
+          description: Recorded exercises
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RecordedExercise' }
+        '401': { $ref: '#/components/responses/Error' }
+  /statistics/exercises/{exerciseId}:
+    get:
+      tags: [Statistics]
+      summary: Progress of one exercise for the current user (max weight, volume, reps, time per session)
+      parameters:
+        - { name: exerciseId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Progress
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExerciseProgress' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /training-sessions:
+    get:
+      tags: [Training sessions]
+      summary: List the current user's sessions
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: exerciseId, in: query, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200':
+          description: Page of sessions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionPage' }
+    post:
+      tags: [Training sessions]
+      summary: Create a training session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SessionInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrainingSession' }
+        '400': { $ref: '#/components/responses/Error' }
+  /training-sessions/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Training sessions]
+      summary: Get a session owned by the current user
+      responses:
+        '200':
+          description: Session
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrainingSession' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [Training sessions]
+      summary: Replace a session and its exercise sets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SessionInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrainingSession' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Training sessions]
+      summary: Delete a session owned by the current user
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Error' }
+  /body-measurements:
+    get:
+      tags: [Body measurements]
+      summary: List the current user's measurements
+      parameters:
+        - { name: measurementTypeCode, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200':
+          description: Page of measurements
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeasurementPage' }
+    post:
+      tags: [Body measurements]
+      summary: Add a body measurement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeasurementInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BodyMeasurement' }
+        '400': { $ref: '#/components/responses/Error' }
+  /body-measurements/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    put:
+      tags: [Body measurements]
+      summary: Update a measurement owned by the current user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeasurementInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BodyMeasurement' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Body measurements]
+      summary: Delete a measurement owned by the current user
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Error' }
+  /routines:
+    get:
+      tags: [Routines]
+      summary: List the current user's routines
+      responses:
+        '200':
+          description: Routines
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Routine' }
+    post:
+      tags: [Routines]
+      summary: Create a routine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoutineInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Routine' }
+  /routines/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Routines]
+      summary: Get a routine owned by the current user
+      responses:
+        '200':
+          description: Routine
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Routine' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [Routines]
+      summary: Replace a routine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoutineInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Routine' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Routines]
+      summary: Delete a routine
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    Error:
+      description: API error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 128, format: password }
+    Account:
+      type: object
+      required: [id, username, displayName, role]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        displayName: { type: string }
+        role: { type: string, enum: [USER, ADMIN] }
+        heightCm: { type: number, nullable: true, description: Height registered once on the account (50-300 cm). Null until registered. }
+    AccountUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 100 }
+        heightCm: { type: number, minimum: 50, maximum: 300, description: Up to one decimal place. }
+    PasswordChange:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 12, maxLength: 128 }
+    InvitationAcceptRequest:
+      type: object
+      required: [token, username, displayName, password]
+      properties:
+        token: { type: string, maxLength: 128 }
+        username: { type: string, minLength: 3, maxLength: 64 }
+        displayName: { type: string, minLength: 1, maxLength: 100 }
+        password: { type: string, minLength: 12, maxLength: 128, format: password }
+    InvitationAccepted:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [PENDING_APPROVAL] }
+    InvitationCreateRequest:
+      type: object
+      properties:
+        expiresInDays: { type: integer, minimum: 1, maximum: 30, default: 7 }
+    Invitation:
+      type: object
+      required: [id, token, expiresAt]
+      properties:
+        id: { type: integer, format: int64 }
+        token: { type: string, description: Returned only when created. }
+        expiresAt: { type: string, format: date-time }
+    PendingUser:
+      type: object
+      required: [id, username, displayName, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        displayName: { type: string }
+        createdAt: { type: string, format: date-time }
+    UserStatus:
+      type: object
+      required: [id, username, displayName, status]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        displayName: { type: string }
+        status: { type: string, enum: [ACTIVE, REJECTED] }
+    Exercise:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        category: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        calorieEnabled: { type: boolean, description: True when the exercise has calorie rates. }
+        calorieBases:
+          type: array
+          description: Recording types that can be estimated (REP for reps, MINUTE for time). Cardio machines have MINUTE only.
+          items: { type: string, enum: [REP, MINUTE] }
+        recordType: { type: string, enum: [REP, MINUTE], description: Fixed recording type of the exercise (REP for reps, MINUTE for time). Cardio machines are MINUTE. }
+    RecordedExercise:
+      type: object
+      properties:
+        exerciseId: { type: integer, format: int64 }
+        exerciseName: { type: string }
+        category: { type: string, nullable: true }
+        sessionCount: { type: integer }
+        lastTrainingDate: { type: string, format: date }
+    ExerciseProgress:
+      type: object
+      properties:
+        exerciseId: { type: integer, format: int64 }
+        exerciseName: { type: string }
+        category: { type: string, nullable: true }
+        from: { type: string, format: date, nullable: true }
+        to: { type: string, format: date, nullable: true }
+        points:
+          type: array
+          description: One point per training session (oldest first).
+          items:
+            type: object
+            properties:
+              sessionId: { type: integer, format: int64 }
+              trainingDate: { type: string, format: date }
+              maxWeightKg: { type: number, nullable: true, description: Null when no set of the session has a weight. }
+              volumeKg: { type: number, nullable: true, description: Sum of weightKg * reps over sets that have both. Null when there is none. }
+              totalReps: { type: integer }
+              totalDurationSeconds: { type: integer }
+              setCount: { type: integer }
+              estimatedCaloriesKcal: { type: number, nullable: true }
+    CalorieRate:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        basis: { type: string, enum: [REP, MINUTE] }
+        rpeMin: { type: integer }
+        rpeMax: { type: integer }
+        metValue: { type: number }
+        secondsPerRep: { type: number, nullable: true }
+        version: { type: integer }
+        source: { type: string }
+    CalorieEstimateRequest:
+      type: object
+      required: [exerciseId, basis, rpe, bodyWeightKg]
+      properties:
+        exerciseId: { type: integer, format: int64, minimum: 1 }
+        basis: { type: string, enum: [REP, MINUTE] }
+        rpe: { type: integer, minimum: 1, maximum: 10 }
+        bodyWeightKg: { type: number, minimum: 20, maximum: 300 }
+        externalLoadKg: { type: number, minimum: 0, maximum: 1000, nullable: true }
+        reps: { type: integer, minimum: 1, maximum: 500, description: Required only for REP. }
+        durationSeconds: { type: integer, minimum: 1, maximum: 86400, description: Required only for MINUTE. }
+    CalorieEstimate:
+      type: object
+      properties:
+        estimateId: { type: integer, format: int64 }
+        exerciseId: { type: integer, format: int64 }
+        exerciseCode: { type: string }
+        basis: { type: string, enum: [REP, MINUTE] }
+        rpe: { type: integer }
+        bodyWeightKg: { type: number }
+        activeSeconds: { type: number }
+        metValue: { type: number }
+        estimatedCaloriesKcal: { type: number }
+        note: { type: string }
+    SetInput:
+      type: object
+      properties:
+        setNumber: { type: integer, minimum: 1 }
+        reps: { type: integer, minimum: 1, nullable: true }
+        durationSeconds: { type: integer, minimum: 1, nullable: true }
+        weightKg: { type: number, minimum: 0, maximum: 99999.99, nullable: true }
+        calorieEstimateId: { type: integer, format: int64, nullable: true, description: Estimate created by the same user for the same exercise. Responses also include estimatedCaloriesKcal and the rpe of that estimate. }
+      description: Exactly one of reps or durationSeconds must be provided.
+    SessionExerciseInput:
+      type: object
+      required: [exerciseId, sets]
+      properties:
+        exerciseId: { type: integer, format: int64, minimum: 1 }
+        displayOrder: { type: integer, minimum: 1 }
+        note: { type: string, maxLength: 500, nullable: true }
+        sets:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/SetInput' }
+    SessionInput:
+      type: object
+      required: [trainingDate, exercises]
+      properties:
+        trainingDate: { type: string, format: date }
+        note: { type: string, maxLength: 1000, nullable: true }
+        exercises:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/SessionExerciseInput' }
+    TrainingSession:
+      allOf:
+        - { $ref: '#/components/schemas/SessionInput' }
+        - type: object
+          required: [id, createdAt, updatedAt]
+          properties:
+            id: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    SessionPage:
+      type: object
+      properties:
+        content: { type: array, items: { $ref: '#/components/schemas/TrainingSession' } }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    MeasurementInput:
+      type: object
+      required: [measurementTypeCode, measuredAt, value]
+      properties:
+        measurementTypeCode: { type: string, maxLength: 40, description: "weight_kg or body_fat_pct. height_cm is no longer accepted (height is registered on the account via PATCH /auth/me)." }
+        measuredAt: { type: string, format: date-time }
+        value: { type: number, minimum: 0 }
+    BodyMeasurement:
+      allOf:
+        - { $ref: '#/components/schemas/MeasurementInput' }
+        - type: object
+          required: [id, name, unit]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+            unit: { type: string }
+    MeasurementPage:
+      type: object
+      properties:
+        content: { type: array, items: { $ref: '#/components/schemas/BodyMeasurement' } }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    RoutineInput:
+      type: object
+      required: [name, exerciseIds]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true }
+        exerciseIds:
+          type: array
+          minItems: 1
+          items: { type: integer, format: int64, minimum: 1 }
+        exerciseTargets:
+          type: array
+          description: Optional ordered targets matching exerciseIds; omitted targets default to 8 reps.
+          items: { $ref: '#/components/schemas/RoutineExerciseTarget' }
+    RoutineExerciseTarget:
+      type: object
+      required: [exerciseId, type]
+      properties:
+        exerciseId: { type: integer, format: int64, minimum: 1 }
+        exerciseName: { type: string }
+        type: { type: string, enum: [reps, time] }
+        reps: { type: integer, minimum: 1, nullable: true }
+        durationSeconds: { type: integer, minimum: 1, nullable: true }
+        weightKg: { type: number, minimum: 0, maximum: 99999.99, nullable: true }
+    Routine:
+      allOf:
+        - { $ref: '#/components/schemas/RoutineInput' }
+        - type: object
+          required: [id, exercises]
+          properties:
+            id: { type: integer, format: int64 }
+            exercises: { type: array, items: { $ref: '#/components/schemas/Exercise' } }
+            exerciseTargets: { type: array, items: { $ref: '#/components/schemas/RoutineExerciseTarget' } }
+    ApiError:
+      type: object
+      required: [code, message, details, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              reason: { type: string }
+        requestId: { type: string, format: uuid }
+security:
+  - sessionCookie: []
