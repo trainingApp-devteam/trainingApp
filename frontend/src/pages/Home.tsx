@@ -9,34 +9,36 @@ import { ui } from '../styles/ui'
 const bodyItems: Array<{ type: MeasurementType; label: string; unit: string }> = [
   { type: 'height_cm', label: '身長', unit: 'cm' },
   { type: 'weight_kg', label: '体重', unit: 'kg' },
-  { type: 'body_fat_pct', label: '体脂肪', unit: '%' },
+  { type: 'body_fat_pct', label: '体脂肪率', unit: '%' },
 ]
 
-function BodyStats({ measurements }: { measurements: BodyMeasurement[] }): JSX.Element {
+// 身長はアカウントに一度だけ登録した値、体重・体脂肪率は最新の測定値を表示する
+function BodyStats({ measurements, heightCm }: { measurements: BodyMeasurement[]; heightCm: number | null }): JSX.Element {
   const latest = latestMeasurements(measurements)
-  const noneRegistered = bodyItems.every((item) => !latest[item.type])
+  const noneRegistered = heightCm === null && bodyItems.every((item) => !latest[item.type])
 
   return (
     <section aria-labelledby="body-stats-heading" className="mb-6">
       <h2 id="body-stats-heading" className="mb-3 text-lg font-semibold text-gray-100">現在の身体データ</h2>
       {noneRegistered && (
         <div role="status" className="mb-3 flex flex-col gap-3 rounded-2xl bg-indigo-500/15 p-4 ring-1 ring-indigo-300/40 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-gray-100">身長・体重・体脂肪がまだ登録されていません。身体測定で登録しましょう（体重はカロリー推定にも使います）。</p>
+          <p className="text-gray-100">身長・体重・体脂肪率がまだ登録されていません。身体測定で登録しましょう（体重はカロリー推定にも使います）。</p>
           <Link to="/body" className={`${ui.btnPrimary} shrink-0 text-center`}>身体測定を登録する</Link>
         </div>
       )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {bodyItems.map((item) => {
-          const value = latest[item.type]
+          const value = item.type === 'height_cm' ? null : latest[item.type]
+          const amount = item.type === 'height_cm' ? heightCm : value?.value
           return (
             <div key={item.type} className={ui.card} data-testid={`body-${item.type}`}>
               <div className="text-sm font-medium text-gray-300">{item.label}</div>
-              {value ? (
+              {amount !== null && amount !== undefined ? (
                 <>
                   <div className="mt-1 text-4xl font-bold text-white sm:text-5xl">
-                    {value.value}<span className="ml-1 text-xl font-medium text-gray-300">{item.unit}</span>
+                    {amount}<span className="ml-1 text-xl font-medium text-gray-300">{item.unit}</span>
                   </div>
-                  <div className="mt-2 text-sm text-gray-300">測定日時: <time dateTime={value.measuredAt}>{formatDateTime(value.measuredAt)}</time></div>
+                  {value && <div className="mt-2 text-sm text-gray-300">測定日時: <time dateTime={value.measuredAt}>{formatDateTime(value.measuredAt)}</time></div>}
                 </>
               ) : (
                 <>
@@ -53,7 +55,7 @@ function BodyStats({ measurements }: { measurements: BodyMeasurement[] }): JSX.E
 }
 
 export default function Home(): JSX.Element {
-  const { status } = useAuth()
+  const { status, account } = useAuth()
   const [records, setRecords] = useState<RecordItem[]>([])
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
   const [measurementsLoaded, setMeasurementsLoaded] = useState(false)
@@ -90,7 +92,7 @@ export default function Home(): JSX.Element {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {measurementsLoaded && <BodyStats measurements={measurements} />}
+      {measurementsLoaded && <BodyStats measurements={measurements} heightCm={account?.heightCm ?? null} />}
 
       <main>
         <section className={ui.card}>

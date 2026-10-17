@@ -25,7 +25,6 @@ erDiagram
     USERS ||--o{ INVITATIONS : creates
     USERS ||--o{ TRAINING_SESSIONS : owns
     USERS ||--o{ ROUTINES : owns
-    USERS ||--o{ EXERCISES : creates
     EXERCISES ||--o{ EXERCISE_CALORIE_RATES : has
     USERS ||--o{ BODY_MEASUREMENTS : records
     MEASUREMENT_TYPES ||--o{ BODY_MEASUREMENTS : classifies
@@ -54,7 +53,7 @@ erDiagram
 | `display_name` | VARCHAR(100) NOT NULL |  | 画面表示名 |
 | `role` | VARCHAR(20) NOT NULL | CHECK | `ADMIN`または`USER` |
 | `status` | VARCHAR(24) NOT NULL | CHECK | `PENDING_APPROVAL`, `ACTIVE`, `REJECTED` |
-| `body_weight_kg` | DECIMAL(5,2) NULL | CHECK 20〜300 | カロリー推定に使う体重 |
+| `height_cm` | DECIMAL(4,1) NULL | CHECK 50〜300 | 一度だけ登録する身長（V9）。推定用体重の列（V6）はV8で廃止し、体重は`body_measurements`の最新値を使う |
 | `created_at` | DATETIME(6) NOT NULL |  | 作成日時UTC |
 | `updated_at` | DATETIME(6) NOT NULL |  | 更新日時UTC |
 
@@ -86,7 +85,7 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 | `calorie_enabled` | BOOLEAN NOT NULL | DEFAULT FALSE | 推定係数がある標準種目か |
 | `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 作成日時 |
 
-実装ではカロリー用の別テーブルは設けず、共通の`exercises`テーブル（V4）に`exercise_code`（UNIQUE、標準種目のみ）と`calorie_enabled`を追加している。標準種目は`owner_user_id IS NULL`で表す。標準種目と推定可能フラグはFlywayで登録し、器具名だけの項目や独自種目には係数を登録しない。
+実装ではカロリー用の別テーブルは設けず、共通の`exercises`テーブル（V4）に`exercise_code`（UNIQUE、標準種目のみ）と`calorie_enabled`を追加している。種目は標準種目だけで、利用者が作成した種目を表していた`owner_user_id`列（FK・インデックスを含む）はV11で削除した。標準種目と推定可能フラグはFlywayで登録する。V10で器具名の項目（ダンベル、スミスマシン、パワーラック）とスクワットにも一般的な筋トレの係数を登録し、全標準種目を推定対象にした。
 
 ### 4.4 `exercise_calorie_rates`
 
@@ -104,7 +103,7 @@ Adminは初期化時に1名作成する。初期一般利用者は2名を想定�
 | `enabled` | BOOLEAN NOT NULL |  | 新規計算への適用可否 |
 | `created_at` | TIMESTAMP NOT NULL | DEFAULT CURRENT_TIMESTAMP | 登録日時 |
 
-カロリーは固定kcal/回ではなく、DBのMET、利用者体重、動作時間から計算する。METは2024 Adult Compendiumの活動区分を基準にし、個別種目への割当、RPE帯、3秒/回のテンポはアプリ側の推定仮定として出典欄に残す。係数改訂時は既存行を上書きせず新しい版を登録する。
+V10で、筋トレ種目の各REP帯と同じMETの`MINUTE`行を追加した（時間で記録した筋トレセット用）。有酸素マシンには`REP`行を登録しない。カロリーは固定kcal/回ではなく、DBのMET、利用者体重、動作時間から計算する。METは2024 Adult Compendiumの活動区分を基準にし、個別種目への割当、RPE帯、3秒/回のテンポはアプリ側の推定仮定として出典欄に残す。係数改訂時は既存行を上書きせず新しい版を登録する。
 
 ### 4.4.1 `exercise_calorie_estimates`
 
@@ -183,7 +182,7 @@ CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NU
 | `min_value` | DECIMAL(10,3) NULL |  | 項目固有の最小値 |
 | `max_value` | DECIMAL(10,3) NULL |  | 項目固有の最大値 |
 
-初期seedは身長(cm)と体重(kg)。将来の単純な数値項目は項目マスタ追加とし、DB列追加を不要にする。
+seedは身長(cm)・体重(kg)・体脂肪率(%)（V3）。V9で身長`height_cm`を`enabled=false`とし、既存の身長測定は利用者ごとの最新値を`users.height_cm`へ移して削除した。将来の単純な数値項目は項目マスタ追加とし、DB列追加を不要にする。
 
 ### 4.10 `body_measurements`
 
@@ -223,6 +222,7 @@ CHECK制約とAPI検証で、`reps`と`duration_seconds`の片方だけがNOT NU
 ## 7. マイグレーション
 
 - 全DDL変更はFlywayの番号付きマイグレーションで管理し、既存マイグレーションを書き換えない。
+- V9（身長のアカウント移行）、V10（全標準種目の係数・筋トレの時間係数）、V11（独自種目の廃止）を追加した。V9は身長測定を、V11は独自種目とそれを参照する記録のセット・メニューの種目（独自種目だけの記録は記録ごと）を削除するため、適用前にバックアップを取る。
 - 標準種目と初期測定項目のseedは、複数回適用しても重複しない方法にする。
 - ローカル・CIのテストDBは、本番DBと同じMySQLメジャーバージョンを使う。
 - マイグレーションの適用順、ロールバック可否、バックアップ要否をPRで説明する。

@@ -45,3 +45,23 @@ export async function getLatestBodyWeight(): Promise<number | null> {
   const weight = latestMeasurements(await listBodyMeasurements()).weight_kg
   return weight ? weight.value : null
 }
+type HistoryPage = MeasurementPage & { totalPages: number }
+
+// 推移グラフ用。指定した項目の測定値を、期間の開始日時以降すべて取得する（古い順）
+export async function listMeasurementHistory(type: MeasurementType, from?: Date | null): Promise<BodyMeasurement[]> {
+  const values: BodyMeasurement[] = []
+  for (let page = 0; ; page++) {
+    const params = new URLSearchParams({ measurementTypeCode: type, page: String(page), size: '100' })
+    if (from) params.set('from', from.toISOString())
+    const result = await apiRequest<HistoryPage>(`/body-measurements?${params}`)
+    result.content.forEach((item) => values.push({
+      id: String(item.id),
+      measuredAt: item.measuredAt,
+      date: localDateString(new Date(item.measuredAt)),
+      type: item.measurementTypeCode,
+      value: item.value,
+    }))
+    if (page + 1 >= result.totalPages || result.content.length === 0) break
+  }
+  return values.reverse()
+}

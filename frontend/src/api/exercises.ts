@@ -1,12 +1,14 @@
 import { apiRequest } from './client'
 
-type BackendExercise = { id: number; name: string; category?: string | null; shared?: boolean; calorieEnabled?: boolean }
+export type CalorieBasis = 'REP' | 'MINUTE'
+type BackendExercise = { id: number; name: string; category?: string | null; calorieEnabled?: boolean; calorieBases?: CalorieBasis[] }
 export type Exercise = {
   id: string
   name: string
   group?: string
-  isBuiltin?: boolean
   calorieEnabled?: boolean
+  // 推定できる記録形式。有酸素マシンは時間(MINUTE)のみ
+  calorieBases?: CalorieBasis[]
 }
 
 function mapExercise(exercise: BackendExercise): Exercise {
@@ -14,8 +16,8 @@ function mapExercise(exercise: BackendExercise): Exercise {
     id: String(exercise.id),
     name: exercise.name,
     group: exercise.category || undefined,
-    isBuiltin: exercise.shared === true,
     calorieEnabled: exercise.calorieEnabled === true,
+    calorieBases: exercise.calorieBases || [],
   }
 }
 
@@ -33,10 +35,9 @@ export async function listExerciseGroups(): Promise<Array<{ id: string; name: st
   return [...groups].sort().map((group) => ({ id: group, name: group }))
 }
 
-export async function createExercise(name: string, group?: string): Promise<Exercise> {
-  const exercise = await apiRequest<BackendExercise>('/exercises', {
-    method: 'POST',
-    body: JSON.stringify({ name, category: group }),
-  })
-  return mapExercise(exercise)
+
+// そのセットの記録形式（回数/時間）で消費カロリーを推定できるか
+export function canEstimate(exercise: Pick<Exercise, 'calorieEnabled' | 'calorieBases'> | undefined, type: 'reps' | 'time'): boolean {
+  if (!exercise || exercise.calorieEnabled !== true) return false
+  return (exercise.calorieBases || []).includes(type === 'reps' ? 'REP' : 'MINUTE')
 }

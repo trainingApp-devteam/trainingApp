@@ -63,7 +63,18 @@ test('login, body weight, menu auto-start, calorie estimate, and record editing'
   await page.getByLabel('セット1の回数').fill('12')
   await page.getByRole('button', { name: '保存' }).click()
   await expect(page.getByText(/12回 × 40kg/)).toBeVisible()
-  await expect(page.getByText(/推定 .* kcal/)).toHaveCount(0)
+  // 回数を変えたセットは、元のRPEと最新の体重で推定し直す（8回で1.56kcal → 12回で2.33kcal）
+  await expect(page.getByText(/推定 2\.33 kcal/)).toBeVisible()
+
+  // 種目別の推移: 記録した種目の最大重量とトレーニング量（12回×40kg = 480kg）をグラフで確認できる
+  await page.goto('/progress')
+  await expect(page.getByLabel('種目')).toHaveValue(String(bench.id))
+  await expect(page.getByRole('img', { name: /最大重量の推移/ })).toBeVisible()
+  await expect(page.getByRole('figure', { name: 'トレーニング量の推移グラフ' })).toContainText('最新 480 kg')
+
+  // 体重の推移グラフ
+  await page.goto('/body')
+  await expect(page.getByRole('figure', { name: '体重の推移グラフ' })).toContainText('最新 63.5 kg')
 
   // header logout returns to the login screen and ends the server session
   await page.locator('header').getByRole('button', { name: 'ログアウト' }).click()

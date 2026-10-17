@@ -107,7 +107,7 @@ async function auditContrast(page: Page): Promise<Violation[]> {
   })
 }
 
-async function api(page: Page, method: 'POST' | 'GET', path: string, data?: unknown) {
+async function api(page: Page, method: 'POST' | 'GET' | 'PATCH', path: string, data?: unknown) {
   await page.request.get('/api/v1/auth/csrf')
   const token = (await page.context().cookies()).find((cookie) => cookie.name === 'XSRF-TOKEN')?.value
   const response = await page.request.fetch(`/api/v1${path}`, {
@@ -156,7 +156,8 @@ test('every screen keeps text readable against the dark background', async ({ pa
   // 他のテストが後から登録する測定値より必ず古い日時にする
   const measuredAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
   await api(page, 'POST', '/body-measurements', { measurementTypeCode: 'weight_kg', measuredAt, value: 66.4 })
-  await api(page, 'POST', '/body-measurements', { measurementTypeCode: 'height_cm', measuredAt, value: 171.5 })
+  // 身長は測定値ではなく、アカウントに一度だけ登録する
+  await api(page, 'PATCH', '/auth/me', { heightCm: 171.5 })
   const session = await api(page, 'POST', '/training-sessions', {
     trainingDate: new Date().toISOString().slice(0, 10),
     exercises: [{ exerciseId: bench.id, displayOrder: 1, sets: [{ reps: 10, weightKg: 40 }, { reps: 8, weightKg: 40 }] }],
@@ -222,14 +223,20 @@ test('every screen keeps text readable against the dark background', async ({ pa
   // 身体測定
   await page.goto('/body')
   await expect(page.getByRole('region', { name: '履歴' }).getByRole('listitem').first()).toBeVisible()
+  await expect(page.getByRole('figure', { name: '体重の推移グラフ' })).toBeVisible()
   await expectReadable(page, '身体測定')
+
   await page.getByRole('button', { name: '保存' }).click()
   await expect(page.getByRole('alert')).toBeVisible()
   await expectReadable(page, '身体測定(エラー)')
 
+  await page.goto('/progress')
+  await expect(page.getByRole('img', { name: /最大重量の推移/ })).toBeVisible()
+  await expectReadable(page, '種目別の推移')
+
   // スマートフォン幅でも確認
   await page.setViewportSize({ width: 375, height: 700 })
-  for (const path of ['/', '/record', '/history', '/body', '/menu']) {
+  for (const path of ['/', '/record', '/history', '/body', '/menu', '/progress']) {
     await page.goto(path)
     await expectReadable(page, `${path}(スマートフォン幅)`)
   }

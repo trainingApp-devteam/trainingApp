@@ -50,7 +50,7 @@ test('hamburger menu replaces header nav and quick links', async ({ page }) => {
 
   await page.getByRole('button', { name: 'メニュー' }).click()
   const nav = page.getByRole('navigation', { name: 'メインメニュー' })
-  await expect(nav.getByRole('link')).toHaveText(['記録', '履歴', 'メニュー', '身体測定', 'アカウント'])
+  await expect(nav.getByRole('link')).toHaveText(['記録', '履歴', 'メニュー', '推移', '身体測定', 'アカウント'])
   await expect(page.locator('header time')).toHaveCount(0)
   await page.waitForTimeout(400)
   await page.screenshot({ path: 'test-results/hamburger-open.png' })

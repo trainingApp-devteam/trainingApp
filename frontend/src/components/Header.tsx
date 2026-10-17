@@ -7,6 +7,7 @@ export const navItems = [
   { to: '/record', label: '記録' },
   { to: '/history', label: '履歴' },
   { to: '/menu', label: 'メニュー' },
+  { to: '/progress', label: '推移' },
   { to: '/body', label: '身体測定' },
   { to: '/account', label: 'アカウント' },
 ]

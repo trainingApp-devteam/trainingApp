@@ -11,18 +11,18 @@ const exercises = [
   id: index + 1,
   name,
   category,
-  shared: true,
-  calorieEnabled: !['ダンベル', 'スミスマシン', 'パワーラック', 'スクワット'].includes(name),
+  // 標準種目はすべて推定対象。有酸素マシンは時間のみ
+  calorieEnabled: true,
+  calorieBases: category === '有酸素' ? ['MINUTE'] : ['REP', 'MINUTE'],
 }))
 
-let nextExerciseId = exercises.length + 1
 let nextEstimateId = 1
-const estimates = new Map<number, number>()
+const estimates = new Map<number, { kcal: number; rpe: number }>()
 let sessions: Array<Record<string, any>> = []
 let measurements: Array<Record<string, any>> = []
 let routines: Array<Record<string, any>> = []
 let nextId = 1
-let account: Record<string, any> = { id: 1, username: 'demo', displayName: 'デモユーザー', role: 'USER' }
+let account: Record<string, any> = { id: 1, username: 'demo', displayName: 'デモユーザー', role: 'USER', heightCm: null }
 
 function sessionResponse(session: Record<string, any>) {
   return {
@@ -33,7 +33,8 @@ function sessionResponse(session: Record<string, any>) {
       category: exercises.find((item) => item.id === exercise.exerciseId)?.category,
       sets: (exercise.sets || []).map((set: Record<string, any>) => ({
         ...set,
-        estimatedCaloriesKcal: set.calorieEstimateId ? estimates.get(set.calorieEstimateId) ?? null : null,
+        estimatedCaloriesKcal: set.calorieEstimateId ? estimates.get(set.calorieEstimateId)?.kcal ?? null : null,
+        rpe: set.calorieEstimateId ? estimates.get(set.calorieEstimateId)?.rpe ?? null : null,
       })),
     })),
   }
@@ -58,6 +59,12 @@ export const handlers = [
     account = { ...account, username: body.username, displayName: body.username }
     return res(ctx.json(account))
   }),
+  rest.patch('/api/v1/auth/me', async (req, res, ctx) => {
+    const body = await req.json()
+    account = { ...account, ...body }
+    return res(ctx.json(account))
+  }),
+  rest.put('/api/v1/auth/me/password', (_req, res, ctx) => res(ctx.status(204))),
   rest.post('/api/v1/auth/logout', (_req, res, ctx) => res(ctx.status(204))),
   rest.post('/api/v1/invitations/accept', (_req, res, ctx) => res(ctx.status(201), ctx.json({ status: 'PENDING_APPROVAL' }))),
 
@@ -66,24 +73,6 @@ export const handlers = [
     const category = req.url.searchParams.get('category') || ''
     const result = exercises.filter((exercise) => (!query || exercise.name.toLowerCase().includes(query)) && (!category || exercise.category === category))
     return res(ctx.json(result))
-  }),
-  rest.post('/api/v1/exercises', async (req, res, ctx) => {
-    const body = await req.json()
-    const exercise = { id: nextExerciseId++, name: body.name, category: body.category || null, shared: false, calorieEnabled: false }
-    exercises.push(exercise)
-    return res(ctx.status(201), ctx.json(exercise))
-  }),
-  rest.put('/api/v1/exercises/:id', async (req, res, ctx) => {
-    const exercise = exercises.find((item) => item.id === Number(req.params.id))
-    if (!exercise) return res(ctx.status(404))
-    Object.assign(exercise, await req.json())
-    return res(ctx.json(exercise))
-  }),
-  rest.delete('/api/v1/exercises/:id', (req, res, ctx) => {
-    const index = exercises.findIndex((item) => item.id === Number(req.params.id))
-    if (index < 0) return res(ctx.status(404))
-    exercises.splice(index, 1)
-    return res(ctx.status(204))
   }),
 
   rest.get('/api/v1/training-sessions', (req, res, ctx) => {
@@ -140,12 +129,12 @@ export const handlers = [
   rest.post('/api/v1/calorie-estimates', async (req, res, ctx) => {
     const body = await req.json()
     const exercise = exercises.find((item) => item.id === body.exerciseId)
-    if (!exercise?.calorieEnabled) return res(ctx.status(422), ctx.json({ message: 'この種目では消費カロリーを推定できません。' }))
+    if (!exercise?.calorieEnabled || !exercise.calorieBases.includes(body.basis)) return res(ctx.status(422), ctx.json({ message: 'この種目では消費カロリーを推定できません。' }))
     const activeSeconds = body.basis === 'REP' ? body.reps * 3 : body.durationSeconds
     const metValue = body.rpe >= 7 ? 6 : 3.5
     const estimatedCaloriesKcal = Math.round(metValue * 3.5 * body.bodyWeightKg / 200 * activeSeconds / 60 * 100) / 100
     const estimateId = nextEstimateId++
-    estimates.set(estimateId, estimatedCaloriesKcal)
+    estimates.set(estimateId, { kcal: estimatedCaloriesKcal, rpe: body.rpe })
     return res(ctx.status(201), ctx.json({
       estimateId,
       exerciseId: body.exerciseId,
@@ -159,6 +148,45 @@ export const handlers = [
       note: '推定値。休憩時間は含みません。動作時間とRPEは概算です。',
     }))
   }),
+  rest.get('/api/v1/statistics/exercises', (_req, res, ctx) => {
+    const byExercise = new Map<number, { count: number; last: string }>()
+    sessions.forEach((session) => (session.exercises || []).forEach((exercise: Record<string, any>) => {
+      const current = byExercise.get(exercise.exerciseId) || { count: 0, last: '' }
+      byExercise.set(exercise.exerciseId, { count: current.count + 1, last: session.trainingDate > current.last ? session.trainingDate : current.last })
+    }))
+    return res(ctx.json([...byExercise.entries()].map(([id, value]) => {
+      const exercise = exercises.find((item) => item.id === id)
+      return { exerciseId: id, exerciseName: exercise?.name, category: exercise?.category, sessionCount: value.count, lastTrainingDate: value.last }
+    }).sort((a, b) => b.lastTrainingDate.localeCompare(a.lastTrainingDate))))
+  }),
+  rest.get('/api/v1/statistics/exercises/:id', (req, res, ctx) => {
+    const id = Number(req.params.id)
+    const from = req.url.searchParams.get('from') || ''
+    const exercise = exercises.find((item) => item.id === id)
+    if (!exercise) return res(ctx.status(404), ctx.json({ message: '対象のデータが見つかりません。' }))
+    const points = sessions
+      .filter((session) => session.trainingDate >= from)
+      .flatMap((session) => (session.exercises || [])
+        .filter((item: Record<string, any>) => item.exerciseId === id)
+        .map((item: Record<string, any>) => {
+          const sets: Array<Record<string, any>> = item.sets || []
+          const weights = sets.map((set) => set.weightKg).filter((w) => w != null)
+          const volumeSets = sets.filter((set) => set.reps && set.weightKg != null)
+          return {
+            sessionId: session.id,
+            trainingDate: session.trainingDate,
+            maxWeightKg: weights.length ? Math.max(...weights) : null,
+            volumeKg: volumeSets.length ? volumeSets.reduce((sum, set) => sum + set.weightKg * set.reps, 0) : null,
+            totalReps: sets.reduce((sum, set) => sum + (set.reps || 0), 0),
+            totalDurationSeconds: sets.reduce((sum, set) => sum + (set.durationSeconds || 0), 0),
+            setCount: sets.length,
+            estimatedCaloriesKcal: null,
+          }
+        }))
+      .sort((a, b) => a.trainingDate.localeCompare(b.trainingDate))
+    return res(ctx.json({ exerciseId: id, exerciseName: exercise.name, category: exercise.category, points }))
+  }),
+
   rest.get('/api/v1/routines', (_req, res, ctx) => res(ctx.json(routines.map(routineResponse)))),
   rest.post('/api/v1/routines', async (req, res, ctx) => {
     const routine = { ...await req.json(), id: nextId++ }

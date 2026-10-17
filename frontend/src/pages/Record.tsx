@@ -1,22 +1,34 @@
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom'
-import { searchExercises, listExerciseGroups, createExercise } from '../api/exercises'
+import { searchExercises, listExerciseGroups, canEstimate } from '../api/exercises'
+import type { Exercise } from '../api/exercises'
 import { getLatestBodyWeight } from '../api/bodyMeasurements'
 import { ui } from '../styles/ui'
-import CreateExerciseModal from '../components/CreateExerciseModal'
-import { createCalorieEstimate, createRecord } from '../api/records'
+import { createRecord, withCalorieEstimates } from '../api/records'
 import type { SetItem } from '../api/records'
 import { listRoutines } from '../api/routines'
 import { localDateString } from '../utils/date'
 // Spotify integration removed — restored original Record page
 // ExerciseSelect modal removed
 
-type Exercise = { id: string; name: string; group?: string; isBuiltin?: boolean; calorieEnabled?: boolean }
+// batch: 全種目のセットを組んでからまとめて実行（従来）
+// step: 1種目のセットを組んで実行し、終わったら次の種目を設定する
+type Flow = 'batch' | 'step'
+
+// 回数では推定できない（時間のみ推定できる）種目。有酸素マシンが該当する
+function timeOnly(exercise: Exercise | undefined): boolean {
+  const bases = exercise?.calorieBases || []
+  return bases.includes('MINUTE') && !bases.includes('REP')
+}
 
 export default function Record(): JSX.Element {
   const navigate = useNavigate()
   const [autoStartPending, setAutoStartPending] = useState(false)
-  
+  const [flow, setFlow] = useState<Flow>('batch')
+  // 1種目ずつの進め方で、実行を終えた種目のセット
+  const [completedSets, setCompletedSets] = useState<SetItem[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
+
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [date, setDate] = useState(() => localDateString())
   const [exerciseId, setExerciseId] = useState('')
@@ -38,8 +50,7 @@ export default function Record(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([])
   const [group, setGroup] = useState<string>('')
-  
-  const [showCreateModal, setShowCreateModal] = useState(false)
+
 
 
   useEffect(() => {
@@ -102,7 +113,7 @@ export default function Record(): JSX.Element {
         else s.timeSeconds = me.timeSeconds
         if (me.weight !== undefined) s.weight = me.weight
         s.rpe = 6
-        s.calorieEnabled = chosen?.isBuiltin === true && chosen.calorieEnabled === true
+        s.calorieEnabled = canEstimate(chosen, me.type)
         if (latestWeight !== null) s.bodyWeightKg = latestWeight
         return s as SetItem
       })
@@ -147,9 +158,28 @@ export default function Record(): JSX.Element {
     if (exercises.length && !exerciseId) setExerciseId(exercises[0].id)
   }, [exercises, exerciseId])
 
+  const selectedExercise = exercises.find((e) => e.id === exerciseId)
+  const selectedTimeOnly = timeOnly(selectedExercise)
+  const flowLocked = planSets.length > 0 || completedSets.length > 0
+  // 完了した種目を、実行した順に種目単位でまとめる
+  const completedGroups = completedSets.reduce<Array<{ exerciseId?: string; name: string; count: number }>>((groups, set) => {
+    const last = groups[groups.length - 1]
+    if (last && last.exerciseId === set.exerciseId) last.count += 1
+    else groups.push({ exerciseId: set.exerciseId, name: set.exerciseName || exercises.find((e) => e.id === set.exerciseId)?.name || '種目', count: 1 })
+    return groups
+  }, [])
+
+  // 有酸素マシンは回数では推定できないため、時間で記録する
+  useEffect(() => {
+    if (selectedTimeOnly) setSetType('time')
+  }, [selectedTimeOnly])
+
   function addSetToPlan() {
     // validate current inputs before adding
     if (!exerciseId) return setError('種目を選択してください')
+    if (flow === 'step' && planSets.some((s) => s.exerciseId !== exerciseId)) {
+      return setError('1種目ずつ実行では、同じ種目のセットだけを追加できます。この種目を実行してから次の種目を設定してください')
+    }
     if (setType === 'reps') {
       if (!Number.isInteger(reps) || reps < 1) return setError('回数は1以上の整数を入力してください')
     } else {
@@ -158,7 +188,7 @@ export default function Record(): JSX.Element {
     if (weight !== '' && (Number.isNaN(Number(weight)) || Number(weight) < 0)) return setError('負荷は0以上の数値で入力してください')
 
     const chosen = exercises.find((e) => e.id === exerciseId)
-    const calorieEnabled = chosen?.isBuiltin === true && chosen.calorieEnabled === true
+    const calorieEnabled = canEstimate(chosen, setType)
     if (calorieEnabled && bodyWeightKg === null) return setError('消費カロリーを推定するには、身体測定で体重を登録してください')
 
     const newSet: SetItem = { type: setType }
@@ -176,11 +206,10 @@ export default function Record(): JSX.Element {
     newSet.calorieEnabled = calorieEnabled
     setPlanSets((s) => [...s, newSet])
     setError(null)
+    setNotice(null)
   }
 
   
-
-  // create modal will return created exercise; handle refresh when received
 
   function validatePlanSets(): boolean {
     for (let i = 0; i < planSets.length; i++) {
@@ -224,6 +253,7 @@ export default function Record(): JSX.Element {
     }
     if (!validatePlanSets()) return
     setError(null)
+    setNotice(null)
     setInSession(true)
     setCurrentIndex(0)
     // initialize remaining for first set if it's time-based, but don't auto-start
@@ -238,33 +268,28 @@ export default function Record(): JSX.Element {
     }
   }
 
-  async function finishAndSave() {
+  async function finishAndSave(sets: SetItem[]) {
+    if (sets.length === 0) return setError('記録するセットがありません')
     setLoading(true)
     try {
-      const calculatedSets = await Promise.all(planSets.map(async (set) => {
-        if (!set.calorieEnabled || !set.exerciseId) return set
-        if (!set.bodyWeightKg) throw new Error('消費カロリーを推定するには、身体測定で体重を登録してください')
-        const estimate = await createCalorieEstimate({
-          exerciseId: Number(set.exerciseId),
-          basis: set.type === 'reps' ? 'REP' : 'MINUTE',
-          rpe: set.rpe || 6,
-          bodyWeightKg: set.bodyWeightKg,
-          externalLoadKg: set.weight,
-          reps: set.reps,
-          durationSeconds: set.timeSeconds,
-        })
-        return {
-          ...set,
-          estimatedCaloriesKcal: estimate.estimatedCaloriesKcal,
-          calorieEstimateId: estimate.estimateId,
-          calorieNote: estimate.note,
-        }
-      }))
-      await createRecord({ date, exerciseId, sets: calculatedSets })
+      const calculatedSets = await withCalorieEstimates(sets, bodyWeightKg)
+      await createRecord({ date, exerciseId: sets[0].exerciseId || exerciseId, sets: calculatedSets })
       navigate('/history')
     } catch (err: any) {
       setError(err.message || '保存に失敗しました')
     } finally { setLoading(false) }
+  }
+
+  // 1種目ずつ: 実行し終えた種目のセットを完了済みへ移し、次の種目の設定へ戻る
+  function completeCurrentExercise() {
+    const finished = planSets
+    const name = finished[0]?.exerciseName || '種目'
+    setCompletedSets((done) => [...done, ...finished])
+    setPlanSets([])
+    setInSession(false)
+    setCurrentIndex(0)
+    setIsTimerRunning(false)
+    setNotice(`「${name}」が完了しました。次の種目を設定するか、「完了して記録」で保存してください`)
   }
 
   function handleNext(autoAdvance = false) {
@@ -284,7 +309,8 @@ export default function Record(): JSX.Element {
     } else {
       // finish
       setIsTimerRunning(false)
-      finishAndSave()
+      if (flow === 'step') completeCurrentExercise()
+      else finishAndSave(planSets)
     }
   }
 
@@ -383,6 +409,37 @@ export default function Record(): JSX.Element {
             <input type="date" aria-label="日付" value={date} onChange={(e) => setDate(e.target.value)} className={ui.input} />
           </section>
 
+          <section aria-labelledby="plan-flow-heading" className={ui.card}>
+            <h3 id="plan-flow-heading" className={ui.cardTitle}>進め方</h3>
+            <div role="radiogroup" aria-labelledby="plan-flow-heading" className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+              <label className="flex items-center gap-2 text-gray-100">
+                <input type="radio" name="flow" checked={flow === 'batch'} disabled={flowLocked} onChange={() => setFlow('batch')} />
+                全種目のセットを組んでまとめて実行
+              </label>
+              <label className="flex items-center gap-2 text-gray-100">
+                <input type="radio" name="flow" checked={flow === 'step'} disabled={flowLocked} onChange={() => setFlow('step')} />
+                1種目ずつ設定して実行
+              </label>
+            </div>
+            <p className={`mt-2 ${ui.muted}`}>
+              {flow === 'batch'
+                ? 'すべての種目のセットを追加してから実行を開始し、最後のセットで記録します。'
+                : '1つの種目のセットを追加して実行し、終わったら次の種目を設定します。すべて終えたら「完了して記録」で保存します。'}
+              {flowLocked && ' 作成中・完了済みのセットがある間は変更できません。'}
+            </p>
+          </section>
+
+          {flow === 'step' && completedSets.length > 0 && (
+            <section aria-labelledby="plan-done-heading" className={ui.card}>
+              <h3 id="plan-done-heading" className={ui.cardTitle}>完了した種目</h3>
+              <ol className="space-y-1 text-sm text-gray-200">
+                {completedGroups.map((g, i) => (
+                  <li key={i}>{i + 1}. {g.name}（{g.count}セット）</li>
+                ))}
+              </ol>
+            </section>
+          )}
+
           <form
             aria-labelledby="plan-add-heading"
             className={ui.card}
@@ -392,7 +449,7 @@ export default function Record(): JSX.Element {
               if (canAdd) addSetToPlan()
             }}
           >
-            <h3 id="plan-add-heading" className={ui.cardTitle}>種目を選んでセットを追加</h3>
+            <h3 id="plan-add-heading" className={ui.cardTitle}>{flow === 'step' && completedSets.length > 0 ? '次の種目を選んでセットを追加' : '種目を選んでセットを追加'}</h3>
           <label className="block mb-4">
             <div className={ui.label}>種目</div>
               <div className="flex gap-2 mb-2">
@@ -407,23 +464,20 @@ export default function Record(): JSX.Element {
                   ))}
                 </select>
                 </div>
-                {/* 独自種目作成ボタンは一時的に非表示 */}
-                {/* <div className="flex gap-2 mt-2">
-                  <button type="button" onClick={() => setShowCreateModal(true)} className="px-3 py-1 rounded bg-blue-600 text-white">独自種目作成</button>
-                </div> */}
           </label>
 
           
 
           <div className={`mb-4 ${ui.panel}`}>
             <div className="flex items-center gap-3 mb-2">
-              <label className="flex items-center gap-2 text-gray-100">
-                <input type="radio" checked={setType==='reps'} onChange={()=>setSetType('reps')} /> 回数
+              <label className={`flex items-center gap-2 ${selectedTimeOnly ? 'text-gray-400' : 'text-gray-100'}`}>
+                <input type="radio" checked={setType==='reps'} disabled={selectedTimeOnly} onChange={()=>setSetType('reps')} /> 回数
               </label>
               <label className="flex items-center gap-2 text-gray-100">
                 <input type="radio" checked={setType==='time'} onChange={()=>setSetType('time')} /> 時間
               </label>
             </div>
+            {selectedTimeOnly && <p className={`mb-2 ${ui.muted}`}>この種目は消費カロリーを推定するため、時間で記録します。</p>}
 
             {setType === 'reps' ? (
               <div className="flex gap-2 mb-2">
@@ -531,68 +585,30 @@ export default function Record(): JSX.Element {
 
           <section aria-labelledby="plan-run-heading" className={ui.card}>
             <h3 id="plan-run-heading" className={ui.cardTitle}>実行</h3>
+            {notice && (
+              <div role="status" className={`mb-3 ${ui.success}`}>{notice}</div>
+            )}
             {error && (
               <div role="alert" className={`mb-3 ${ui.error}`}>{error}</div>
             )}
-            <div className="flex gap-3">
-            <button type="button" onClick={startSession} className={ui.btnSuccess}>実行開始</button>
+            <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={startSession} className={ui.btnSuccess}>{flow === 'step' ? 'この種目を実行' : '実行開始'}</button>
             <button type="button" onClick={() => { setPlanSets([]); setError(null) }} className={ui.btnSecondary}>リセット</button>
+            {flow === 'step' && completedSets.length > 0 && (
+              <button type="button" onClick={() => finishAndSave(completedSets)} disabled={loading} className={ui.btnPrimary}>{loading ? '保存中...' : '完了して記録'}</button>
+            )}
             </div>
+            {flow === 'step' && completedSets.length > 0 && planSets.length > 0 && (
+              <p className={`mt-2 ${ui.muted}`}>「完了して記録」では、実行を終えた種目だけを保存します。</p>
+            )}
           </section>
         </div>
-      )}
-      {/* Create exercise modal */}
-      {showCreateModal && (
-        <Suspense fallback={null}>
-          <CreateExerciseModal
-            isOpen={showCreateModal}
-            onClose={() => setShowCreateModal(false)}
-            onCreated={(ex) => {
-              setShowCreateModal(false)
-              // ensure group list contains the created exercise's group
-              if (ex.group) {
-                const g = ex.group
-                setGroups((prev) => {
-                  if (prev.find((pg) => pg.id === g)) return prev
-                  return [{ id: g, name: g }, ...prev]
-                })
-                // switch current group to the created exercise's group so it's visible
-                setGroup(g)
-              }
-              // prepend created exercise so UI shows it immediately
-              setExercises((prev) => {
-                if (!ex.id || !ex.name) return prev
-                if (prev.find((p) => p.id === ex.id)) return prev
-                const item: Exercise = { id: ex.id, name: ex.name, group: ex.group }
-                return [item, ...prev]
-              })
-              // backfill any existing planSets that referenced this id but lacked a name
-              setPlanSets((prev) => prev.map((s) => {
-                if (!s.exerciseName && s.exerciseId === ex.id) {
-                  return { ...s, exerciseName: ex.name, exerciseGroup: ex.group }
-                }
-                return s
-              }))
-              // refresh from server in background for full sync
-              const cat = ex.group || group
-              searchExercises('', cat).then((list) => {
-                setExercises((prev) => {
-                  const ids = new Set(prev.map((p) => p.id))
-                  // ensure incoming items have required id and name
-                  const merged = list.filter((l) => l && l.id && l.name && !ids.has(l.id)) as Exercise[]
-                  return [ ...prev, ...merged ]
-                })
-              }).catch(() => {})
-              setExerciseId(ex.id)
-            }}
-          />
-        </Suspense>
       )}
 
       {inSession && (
         <div className={`max-w-2xl ${ui.card}`}>
           <div className="flex items-center justify-between mb-4">
-            <div className="text-sm text-gray-300">現在のセット</div>
+            <div className="text-sm text-gray-300">{flow === 'step' ? `${completedGroups.length + 1}種目目・現在のセット` : '現在のセット'}</div>
             <div className="px-3 py-1 bg-black/30 rounded font-semibold text-sm text-gray-100">{currentIndex+1}/{planSets.length}</div>
           </div>
 
@@ -611,6 +627,8 @@ export default function Record(): JSX.Element {
             </div>
           </div>
 
+          {error && <div role="alert" className={`mb-3 ${ui.error}`}>{error}</div>}
+
           {planSets[currentIndex].type === 'time' && (
             <div className="text-center mb-4">
                 <div className="text-6xl font-mono">{remaining !== null ? `${remaining}s` : ''}</div>
@@ -628,7 +646,7 @@ export default function Record(): JSX.Element {
                 {isTimerRunning ? '一時停止' : '開始'}
               </button>
             )}
-            <button onClick={() => handleNext(false)} className="px-4 py-2 rounded bg-indigo-600 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">{currentIndex+1 < planSets.length ? '次のメニューへ' : (loading ? '保存中...' : '完了して記録')}</button>
+            <button onClick={() => handleNext(false)} className="px-4 py-2 rounded bg-indigo-600 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">{currentIndex+1 < planSets.length ? '次のメニューへ' : flow === 'step' ? 'この種目を完了' : (loading ? '保存中...' : '完了して記録')}</button>
             <button onClick={()=>{ setInSession(false); setCurrentIndex(0); setIsTimerRunning(false) }} className="px-4 py-2 rounded bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">中止</button>
           </div>
 

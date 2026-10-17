@@ -1,13 +1,15 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import Account from '../Account'
-import { acceptInvitation, getCurrentAccount, login } from '../../api/auth'
+import { acceptInvitation, changePassword, getCurrentAccount, login, updateAccount } from '../../api/auth'
 
 vi.mock('../../api/auth', () => ({
   getCurrentAccount: vi.fn(),
   login: vi.fn(),
   acceptInvitation: vi.fn(),
+  updateAccount: vi.fn(),
+  changePassword: vi.fn(),
 }))
 
 const member = { id: 2, username: 'taro', displayName: '太郎', role: 'USER' as const }
@@ -131,10 +133,83 @@ describe('Account screen when logged in', () => {
     expect(screen.queryByRole('button', { name: '保存' })).not.toBeInTheDocument()
   })
 
-  test('points to the body measurements for the weight used in calorie estimates', async () => {
+  test('no longer explains the body weight used for calorie estimates', async () => {
     renderAccount()
 
-    const link = await screen.findByRole('link', { name: '身体測定' })
-    expect(link).toHaveAttribute('href', '/body')
+    await screen.findByText('太郎')
+    expect(screen.queryByText(/カロリー推定に使う体重/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '身体測定' })).not.toBeInTheDocument()
+  })
+
+  test('changes the account name', async () => {
+    const user = userEvent.setup()
+    vi.mocked(updateAccount).mockReset().mockResolvedValue({ ...member, displayName: '次郎' })
+    renderAccount()
+    const form = await screen.findByRole('form', { name: 'アカウント名の変更' })
+
+    const input = within(form).getByLabelText('アカウント名')
+    expect(input).toHaveValue('太郎')
+    await user.clear(input)
+    await user.type(input, '  次郎 ')
+    await user.click(within(form).getByRole('button', { name: 'アカウント名を変更' }))
+
+    expect(updateAccount).toHaveBeenCalledWith({ displayName: '次郎' })
+    expect(await within(form).findByRole('status')).toHaveTextContent('アカウント名を変更しました')
+    expect(screen.getByText('次郎')).toBeInTheDocument()
+  })
+
+  test('rejects an empty account name without calling the server', async () => {
+    const user = userEvent.setup()
+    vi.mocked(updateAccount).mockReset()
+    renderAccount()
+    const form = await screen.findByRole('form', { name: 'アカウント名の変更' })
+
+    await user.clear(within(form).getByLabelText('アカウント名'))
+    await user.click(within(form).getByRole('button', { name: 'アカウント名を変更' }))
+
+    expect(within(form).getByRole('alert')).toHaveTextContent('アカウント名を入力してください')
+    expect(updateAccount).not.toHaveBeenCalled()
+  })
+
+  test('changes the password after confirming the new one', async () => {
+    const user = userEvent.setup()
+    vi.mocked(changePassword).mockReset().mockResolvedValue(undefined)
+    renderAccount()
+    const form = await screen.findByRole('form', { name: 'パスワードの変更' })
+
+    await user.type(within(form).getByLabelText('現在のパスワード'), 'old-password-123')
+    await user.type(within(form).getByLabelText('新しいパスワード（12文字以上）'), 'new-password-456')
+    await user.type(within(form).getByLabelText('新しいパスワード（確認）'), 'new-password-456')
+    await user.click(within(form).getByRole('button', { name: 'パスワードを変更' }))
+
+    expect(changePassword).toHaveBeenCalledWith('old-password-123', 'new-password-456')
+    expect(await within(form).findByRole('status')).toHaveTextContent('パスワードを変更しました')
+    expect(within(form).getByLabelText('現在のパスワード')).toHaveValue('')
+  })
+
+  test('checks the new password locally and shows a server error for a wrong current password', async () => {
+    const user = userEvent.setup()
+    vi.mocked(changePassword).mockReset().mockRejectedValue(new Error('現在のパスワードが正しくありません。'))
+    renderAccount()
+    const form = await screen.findByRole('form', { name: 'パスワードの変更' })
+    const newPassword = within(form).getByLabelText('新しいパスワード（12文字以上）')
+    const confirmation = within(form).getByLabelText('新しいパスワード（確認）')
+
+    await user.type(within(form).getByLabelText('現在のパスワード'), 'old-password-123')
+    await user.type(newPassword, 'short')
+    await user.click(within(form).getByRole('button', { name: 'パスワードを変更' }))
+    expect(within(form).getByRole('alert')).toHaveTextContent('12〜128文字')
+
+    await user.clear(newPassword)
+    await user.type(newPassword, 'new-password-456')
+    await user.type(confirmation, 'new-password-789')
+    await user.click(within(form).getByRole('button', { name: 'パスワードを変更' }))
+    expect(within(form).getByRole('alert')).toHaveTextContent('一致しません')
+    expect(changePassword).not.toHaveBeenCalled()
+
+    await user.clear(confirmation)
+    await user.type(confirmation, 'new-password-456')
+    await user.click(within(form).getByRole('button', { name: 'パスワードを変更' }))
+    expect(await within(form).findByRole('alert')).toHaveTextContent('現在のパスワードが正しくありません。')
   })
 })

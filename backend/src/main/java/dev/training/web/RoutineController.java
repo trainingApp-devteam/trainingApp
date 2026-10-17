@@ -103,9 +103,7 @@ public class RoutineController {
         List<RoutineExercise> exerciseIds = new ArrayList<>();
         for (int index = 0; index < ids.size(); index++) {
             long id = ApiValues.positiveLong(ids.get(index), "exerciseIds");
-            Integer visible = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM exercises WHERE id = ? AND (owner_user_id IS NULL OR owner_user_id = ?)",
-                    Integer.class, id, ownerId);
+            Integer visible = jdbc.queryForObject("SELECT COUNT(*) FROM exercises WHERE id = ?", Integer.class, id);
             if (visible == null || visible == 0) {
                 throw ApiValues.invalid("exerciseIds");
             }
@@ -164,12 +162,11 @@ public class RoutineController {
             throw ApiValues.notFound();
         }
         List<Map<String, Object>> exercises = jdbc.query(
-                "SELECT e.id, e.owner_user_id, e.name, e.category, e.description, re.target_type, re.target_reps, re.target_duration_seconds, re.target_weight_kg FROM routine_exercises re "
+                "SELECT e.id, e.name, e.category, e.description, re.target_type, re.target_reps, re.target_duration_seconds, re.target_weight_kg FROM routine_exercises re "
                         + "JOIN exercises e ON e.id = re.exercise_id WHERE re.routine_id = ? ORDER BY re.display_order",
                 (row, index) -> {
                     Map<String, Object> exercise = new LinkedHashMap<>();
                     exercise.put("id", row.getLong("id"));
-                    exercise.put("shared", row.getObject("owner_user_id") == null);
                     exercise.put("name", row.getString("name"));
                     exercise.put("category", row.getString("category"));
                     exercise.put("description", row.getString("description"));

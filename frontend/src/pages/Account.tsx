@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { acceptInvitation, Account as AccountInfo, getCurrentAccount, login } from '../api/auth'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { acceptInvitation, Account as AccountInfo, changePassword, getCurrentAccount, login, updateAccount } from '../api/auth'
 import { onAuthChanged } from '../api/authEvents'
 import { ui } from '../styles/ui'
 
@@ -91,14 +91,96 @@ export default function Account(): JSX.Element {
         )}
 
         {current && (
-          <>
-            <div className="mb-3 text-gray-100">ログイン中: <strong>{current.displayName || current.username}</strong>（{current.role}）</div>
-            <p className={ui.muted}>
-              カロリー推定に使う体重は、<Link to="/body" className={ui.link}>身体測定</Link>で登録した最新の体重です。
-            </p>
-          </>
+          <div className="text-gray-100">
+            ログイン中: <strong>{current.displayName || current.username}</strong>（{current.role}）
+            <div className={`mt-1 ${ui.muted}`}>ユーザー名（ログインID）: {current.username}</div>
+          </div>
         )}
       </div>
+      {current && (
+        <div className="mt-4 max-w-md space-y-4">
+          <DisplayNameForm current={current} onChanged={setCurrent} />
+          <PasswordForm />
+        </div>
+      )}
     </div>
+  )
+}
+
+// アカウント名（ヘッダー等に表示する表示名）の変更
+function DisplayNameForm({ current, onChanged }: { current: AccountInfo; onChanged: (account: AccountInfo) => void }): JSX.Element {
+  const [displayName, setDisplayName] = useState(current.displayName)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    setMessage(null)
+    const name = displayName.trim()
+    if (!name) return setError('アカウント名を入力してください')
+    if (name.length > 100) return setError('アカウント名は100文字以内で入力してください')
+    setBusy(true)
+    try {
+      onChanged(await updateAccount({ displayName: name }))
+      setError(null)
+      setMessage('アカウント名を変更しました')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'アカウント名を変更できませんでした')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <form onSubmit={submit} className={ui.card} aria-labelledby="account-name-heading">
+      <h3 id="account-name-heading" className={ui.cardTitle}>アカウント名の変更</h3>
+      <label htmlFor="account-new-display-name" className={ui.label}>アカウント名</label>
+      <input id="account-new-display-name" maxLength={100} value={displayName} onChange={e => setDisplayName(e.target.value)} className={`mb-3 ${ui.input}`} />
+      <p className={`mb-3 ${ui.muted}`}>ヘッダーなどに表示される名前です。ログインに使うユーザー名は変わりません。</p>
+      <button type="submit" disabled={busy} className={ui.btnSuccess}>{busy ? '処理中...' : 'アカウント名を変更'}</button>
+      {error && <div role="alert" className={`mt-3 ${ui.error}`}>{error}</div>}
+      {message && <div role="status" className={`mt-3 ${ui.success}`}>{message}</div>}
+    </form>
+  )
+}
+
+function PasswordForm(): JSX.Element {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    setMessage(null)
+    if (!currentPassword) return setError('現在のパスワードを入力してください')
+    if (newPassword.length < 12 || newPassword.length > 128) return setError('新しいパスワードは12〜128文字で入力してください')
+    if (newPassword !== confirmation) return setError('新しいパスワード（確認）が一致しません')
+    if (newPassword === currentPassword) return setError('現在と異なるパスワードを入力してください')
+    setBusy(true)
+    try {
+      await changePassword(currentPassword, newPassword)
+      setCurrentPassword(''); setNewPassword(''); setConfirmation('')
+      setError(null)
+      setMessage('パスワードを変更しました。次回から新しいパスワードでログインしてください')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'パスワードを変更できませんでした')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <form onSubmit={submit} className={ui.card} aria-labelledby="account-password-heading">
+      <h3 id="account-password-heading" className={ui.cardTitle}>パスワードの変更</h3>
+      <div className="mb-3"><label htmlFor="account-current-password" className={ui.label}>現在のパスワード</label>
+        <input id="account-current-password" type="password" autoComplete="current-password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className={ui.input} /></div>
+      <div className="mb-3"><label htmlFor="account-new-password" className={ui.label}>新しいパスワード（12文字以上）</label>
+        <input id="account-new-password" type="password" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={ui.input} /></div>
+      <div className="mb-4"><label htmlFor="account-confirm-password" className={ui.label}>新しいパスワード（確認）</label>
+        <input id="account-confirm-password" type="password" autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} className={ui.input} /></div>
+      <button type="submit" disabled={busy} className={ui.btnSuccess}>{busy ? '処理中...' : 'パスワードを変更'}</button>
+      {error && <div role="alert" className={`mt-3 ${ui.error}`}>{error}</div>}
+      {message && <div role="status" className={`mt-3 ${ui.success}`}>{message}</div>}
+    </form>
   )
 }

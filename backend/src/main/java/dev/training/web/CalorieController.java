@@ -38,7 +38,7 @@ public class CalorieController {
                 SELECT r.id, r.basis, r.rpe_min, r.rpe_max, r.met_value, r.seconds_per_rep, r.version, r.source
                 FROM exercise_calorie_rates r
                 JOIN exercises e ON e.exercise_code = r.exercise_code
-                WHERE e.id = ? AND e.owner_user_id IS NULL AND r.enabled = TRUE
+                WHERE e.id = ? AND r.enabled = TRUE
                 ORDER BY r.basis, r.rpe_min
                 """, (row, index) -> {
             Map<String, Object> rate = new LinkedHashMap<>();
@@ -141,7 +141,7 @@ public class CalorieController {
                 SELECT r.id, r.exercise_code, r.met_value, r.seconds_per_rep
                 FROM exercise_calorie_rates r
                 JOIN exercises e ON e.exercise_code = r.exercise_code
-                WHERE e.id = ? AND e.owner_user_id IS NULL AND e.calorie_enabled = TRUE
+                WHERE e.id = ? AND e.calorie_enabled = TRUE
                   AND r.basis = ? AND r.enabled = TRUE AND ? BETWEEN r.rpe_min AND r.rpe_max
                 """, (row, index) -> new Rate(row.getLong("id"), row.getString("exercise_code"),
                 row.getBigDecimal("met_value"), row.getBigDecimal("seconds_per_rep")),

@@ -15,6 +15,7 @@ tags:
   - name: Training sessions
   - name: Body measurements
   - name: Routines
+  - name: Statistics
 paths:
   /auth/csrf:
     get:
@@ -68,6 +69,35 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [Authentication]
+      summary: Change the display name and/or the height of the current account (only the given fields)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountUpdate' }
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/me/password:
+    put:
+      tags: [Authentication]
+      summary: Change the password after verifying the current one; the session identifier is rotated
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordChange' }
+      responses:
+        '204': { description: Password changed }
+        '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
   /invitations/accept:
     post:
@@ -156,7 +186,7 @@ paths:
   /exercises:
     get:
       tags: [Exercises]
-      summary: Search shared and owned exercises
+      summary: Search the built-in exercises (users cannot create, update, or delete exercises)
       parameters:
         - { name: q, in: query, schema: { type: string, maxLength: 100 } }
         - { name: category, in: query, schema: { type: string, maxLength: 50 } }
@@ -168,27 +198,12 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Exercise' }
-    post:
-      tags: [Exercises]
-      summary: Create a personal exercise
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ExerciseInput' }
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Exercise' }
-        '400': { $ref: '#/components/responses/Error' }
   /exercises/{id}:
     parameters:
       - { $ref: '#/components/parameters/Id' }
     get:
       tags: [Exercises]
-      summary: Get a shared or owned exercise
+      summary: Get a built-in exercise
       responses:
         '200':
           description: Exercise
@@ -196,34 +211,12 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Exercise' }
         '404': { $ref: '#/components/responses/Error' }
-    put:
-      tags: [Exercises]
-      summary: Update an owned exercise
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ExerciseInput' }
-      responses:
-        '200':
-          description: Updated
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Exercise' }
-        '404': { $ref: '#/components/responses/Error' }
-    delete:
-      tags: [Exercises]
-      summary: Delete an owned exercise not used by a record or routine
-      responses:
-        '204': { description: Deleted }
-        '404': { $ref: '#/components/responses/Error' }
-        '409': { $ref: '#/components/responses/Error' }
   /exercises/{id}/calorie-rates:
     parameters:
       - { $ref: '#/components/parameters/Id' }
     get:
       tags: [Calorie estimates]
-      summary: List enabled calorie rates of a shared exercise
+      summary: List enabled calorie rates of an exercise
       responses:
         '200':
           description: Rates
@@ -235,7 +228,7 @@ paths:
   /calorie-estimates:
     post:
       tags: [Calorie estimates]
-      summary: Estimate and store calories for one set (shared exercises with a configured rate only)
+      summary: Estimate and store calories for one set
       requestBody:
         required: true
         content:
@@ -249,6 +242,35 @@ paths:
               schema: { $ref: '#/components/schemas/CalorieEstimate' }
         '400': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /statistics/exercises:
+    get:
+      tags: [Statistics]
+      summary: List the exercises the current user has recorded, most recent first
+      responses:
+        '200':
+          description: Recorded exercises
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RecordedExercise' }
+        '401': { $ref: '#/components/responses/Error' }
+  /statistics/exercises/{exerciseId}:
+    get:
+      tags: [Statistics]
+      summary: Progress of one exercise for the current user (max weight, volume, reps, time per session)
+      parameters:
+        - { name: exerciseId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Progress
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExerciseProgress' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /training-sessions:
     get:
       tags: [Training sessions]
@@ -470,6 +492,18 @@ components:
         username: { type: string }
         displayName: { type: string }
         role: { type: string, enum: [USER, ADMIN] }
+        heightCm: { type: number, nullable: true, description: Height registered once on the account (50-300 cm). Null until registered. }
+    AccountUpdate:
+      type: object
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 100 }
+        heightCm: { type: number, minimum: 50, maximum: 300, description: Up to one decimal place. }
+    PasswordChange:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 12, maxLength: 128 }
     InvitationAcceptRequest:
       type: object
       required: [token, username, displayName, password]
@@ -510,22 +544,49 @@ components:
         username: { type: string }
         displayName: { type: string }
         status: { type: string, enum: [ACTIVE, REJECTED] }
-    ExerciseInput:
-      type: object
-      required: [name]
-      properties:
-        name: { type: string, minLength: 1, maxLength: 100 }
-        category: { type: string, maxLength: 50, nullable: true }
-        description: { type: string, maxLength: 500, nullable: true }
     Exercise:
-      allOf:
-        - { $ref: '#/components/schemas/ExerciseInput' }
-        - type: object
-          required: [id, shared]
-          properties:
-            id: { type: integer, format: int64 }
-            shared: { type: boolean }
-            calorieEnabled: { type: boolean, description: True only for shared exercises with calorie rates. }
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        category: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        calorieEnabled: { type: boolean, description: True when the exercise has calorie rates. }
+        calorieBases:
+          type: array
+          description: Recording types that can be estimated (REP for reps, MINUTE for time). Cardio machines have MINUTE only.
+          items: { type: string, enum: [REP, MINUTE] }
+    RecordedExercise:
+      type: object
+      properties:
+        exerciseId: { type: integer, format: int64 }
+        exerciseName: { type: string }
+        category: { type: string, nullable: true }
+        sessionCount: { type: integer }
+        lastTrainingDate: { type: string, format: date }
+    ExerciseProgress:
+      type: object
+      properties:
+        exerciseId: { type: integer, format: int64 }
+        exerciseName: { type: string }
+        category: { type: string, nullable: true }
+        from: { type: string, format: date, nullable: true }
+        to: { type: string, format: date, nullable: true }
+        points:
+          type: array
+          description: One point per training session (oldest first).
+          items:
+            type: object
+            properties:
+              sessionId: { type: integer, format: int64 }
+              trainingDate: { type: string, format: date }
+              maxWeightKg: { type: number, nullable: true, description: Null when no set of the session has a weight. }
+              volumeKg: { type: number, nullable: true, description: Sum of weightKg * reps over sets that have both. Null when there is none. }
+              totalReps: { type: integer }
+              totalDurationSeconds: { type: integer }
+              setCount: { type: integer }
+              estimatedCaloriesKcal: { type: number, nullable: true }
     CalorieRate:
       type: object
       properties:
@@ -568,7 +629,7 @@ components:
         reps: { type: integer, minimum: 1, nullable: true }
         durationSeconds: { type: integer, minimum: 1, nullable: true }
         weightKg: { type: number, minimum: 0, maximum: 99999.99, nullable: true }
-        calorieEstimateId: { type: integer, format: int64, nullable: true, description: Estimate created by the same user for the same shared exercise. Responses also include estimatedCaloriesKcal. }
+        calorieEstimateId: { type: integer, format: int64, nullable: true, description: Estimate created by the same user for the same exercise. Responses also include estimatedCaloriesKcal and the rpe of that estimate. }
       description: Exactly one of reps or durationSeconds must be provided.
     SessionExerciseInput:
       type: object
@@ -612,7 +673,7 @@ components:
       type: object
       required: [measurementTypeCode, measuredAt, value]
       properties:
-        measurementTypeCode: { type: string, maxLength: 40 }
+        measurementTypeCode: { type: string, maxLength: 40, description: "weight_kg or body_fat_pct. height_cm is no longer accepted (height is registered on the account via PATCH /auth/me)." }
         measuredAt: { type: string, format: date-time }
         value: { type: number, minimum: 0 }
     BodyMeasurement:

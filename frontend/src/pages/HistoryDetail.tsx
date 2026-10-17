@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getRecord, updateRecord, RecordItem, SetItem } from '../api/records'
+import { getRecord, updateRecord, withCalorieEstimates, RecordItem, SetItem } from '../api/records'
+import { canEstimate, searchExercises } from '../api/exercises'
+import { getLatestBodyWeight } from '../api/bodyMeasurements'
 
 type Draft = { date: string; note: string; sets: SetItem[] }
 
@@ -86,7 +88,18 @@ export default function HistoryDetail(): JSX.Element {
     if (message) { setFormError(message); return }
     setSaving(true); setFormError(null)
     try {
-      const updated = await updateRecord(id, { date: draft.date, note: draft.note || undefined, exerciseId: item.exerciseId, sets: draft.sets })
+      // 回数・時間を変えたセット（推定が外れたセット）は、元のRPE（不明なら6）と最新の体重で推定し直す
+      const [catalog, bodyWeightKg] = await Promise.all([
+        searchExercises().catch(() => []),
+        getLatestBodyWeight().catch(() => null),
+      ])
+      const prepared = draft.sets.map((set) => set.calorieEstimateId !== undefined ? set : {
+        ...set,
+        rpe: set.rpe ?? 6,
+        calorieEnabled: canEstimate(catalog.find((exercise) => exercise.id === set.exerciseId), set.type),
+      })
+      const sets = await withCalorieEstimates(prepared, bodyWeightKg)
+      const updated = await updateRecord(id, { date: draft.date, note: draft.note || undefined, exerciseId: item.exerciseId, sets })
       setItem(updated)
       setDraft(null)
     } catch (e) {
@@ -133,7 +146,7 @@ export default function HistoryDetail(): JSX.Element {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-sm text-gray-400">回数・時間を変更したセットの消費カロリー推定は未計算になります。</p>
+          <p className="mt-3 text-sm text-gray-300">回数・時間を変更したセットの消費カロリーは、保存時に元のRPE（不明な場合は6）と最新の体重で再計算します。</p>
           <div className="mt-4 flex gap-2">
             <button disabled={saving} onClick={save} className="px-3 py-2 rounded bg-green-700 disabled:opacity-50">{saving ? '保存中...' : '保存'}</button>
             <button disabled={saving} onClick={() => setDraft(null)} className="px-3 py-2 rounded bg-gray-700">キャンセル</button>

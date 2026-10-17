@@ -9,6 +9,7 @@ import HistoryDetail from "./pages/HistoryDetail";
 import Body from "./pages/Body";
 import Menu from "./pages/Menu";
 import Account from "./pages/Account";
+import Progress from "./pages/Progress";
 import Header from "./components/Header";
 import RequireAuth from "./components/RequireAuth";
 import { AuthProvider } from "./auth/AuthContext";
@@ -30,6 +31,7 @@ export default function App(): JSX.Element {
               <Route path="/history/:id" element={<RequireAuth><HistoryDetail /></RequireAuth>} />
               <Route path="/body" element={<RequireAuth><Body /></RequireAuth>} />
               <Route path="/menu" element={<RequireAuth><Menu /></RequireAuth>} />
+              <Route path="/progress" element={<RequireAuth><Progress /></RequireAuth>} />
             </Routes>
           </main>
         </AuthProvider>

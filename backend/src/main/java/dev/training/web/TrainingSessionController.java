@@ -197,9 +197,7 @@ public class TrainingSessionController {
         long ownerId = jdbc.queryForObject("SELECT user_id FROM training_sessions WHERE id = ?", Long.class, sessionId);
         for (Map<String, Object> exercise : exercises) {
             long exerciseId = (long) exercise.get("exerciseId");
-            Integer visible = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM exercises WHERE id = ? AND (owner_user_id IS NULL OR owner_user_id = ?)",
-                    Integer.class, exerciseId, ownerId);
+            Integer visible = jdbc.queryForObject("SELECT COUNT(*) FROM exercises WHERE id = ?", Integer.class, exerciseId);
             if (visible == null || visible == 0) {
                 throw ApiValues.invalid("exerciseId");
             }
@@ -270,7 +268,7 @@ public class TrainingSessionController {
                     exercise.put("displayOrder", row.getInt("display_order"));
                     exercise.put("note", row.getString("note"));
                     exercise.put("sets", jdbc.query(
-                            "SELECT r.set_number, r.reps, r.duration_seconds, r.weight_kg, r.calorie_estimate_id, c.estimated_calories_kcal "
+                            "SELECT r.set_number, r.reps, r.duration_seconds, r.weight_kg, r.calorie_estimate_id, c.estimated_calories_kcal, c.rpe "
                                     + "FROM set_records r LEFT JOIN exercise_calorie_estimates c ON c.id = r.calorie_estimate_id "
                                     + "WHERE r.session_exercise_id = ? ORDER BY r.set_number",
                             (setRow, setIndex) -> {
@@ -281,6 +279,7 @@ public class TrainingSessionController {
                                 set.put("weightKg", setRow.getBigDecimal("weight_kg"));
                                 set.put("calorieEstimateId", (Long) setRow.getObject("calorie_estimate_id"));
                                 set.put("estimatedCaloriesKcal", setRow.getBigDecimal("estimated_calories_kcal"));
+                                set.put("rpe", (Integer) (setRow.getObject("rpe") == null ? null : setRow.getInt("rpe")));
                                 return set;
                             }, sessionExerciseId));
                     return exercise;

@@ -67,13 +67,13 @@ describe('Home page body data', () => {
     vi.mocked(listBodyMeasurements).mockReset()
   })
 
-  test('shows the latest height, weight, and body fat with their measurement date-time at the top', async () => {
+  test('shows the registered height and the latest weight and body fat with their measurement date-time at the top', async () => {
     const newest = new Date(2026, 9, 15, 21, 30).toISOString()
     const older = new Date(2026, 9, 1, 8, 0).toISOString()
+    vi.mocked(getCurrentAccount).mockResolvedValue({ ...member, heightCm: 171.5 })
     vi.mocked(listBodyMeasurements).mockResolvedValue([
       measured('1', 'weight_kg', 70, older),
       measured('2', 'weight_kg', 66.4, newest),
-      measured('3', 'height_cm', 171.5, older),
       measured('4', 'body_fat_pct', 18.2, newest),
     ])
     renderHome()
@@ -83,7 +83,8 @@ describe('Home page body data', () => {
     expect(weight).toHaveTextContent('66.4')
     expect(weight).toHaveTextContent(`測定日時: ${formatDateTime(newest)}`)
     expect(screen.getByTestId('body-height_cm')).toHaveTextContent('171.5')
-    expect(screen.getByTestId('body-height_cm')).toHaveTextContent(`測定日時: ${formatDateTime(older)}`)
+    // height is registered once on the account, so it has no measurement time
+    expect(screen.getByTestId('body-height_cm')).not.toHaveTextContent('測定日時')
     expect(screen.getByTestId('body-body_fat_pct')).toHaveTextContent('18.2')
     expect(screen.queryByText(/まだ登録されていません/)).not.toBeInTheDocument()
     expect(screen.queryByText('未登録')).not.toBeInTheDocument()
@@ -98,7 +99,7 @@ describe('Home page body data', () => {
     vi.mocked(listBodyMeasurements).mockResolvedValue([])
     renderHome()
 
-    expect(await screen.findByText(/身長・体重・体脂肪がまだ登録されていません/)).toBeInTheDocument()
+    expect(await screen.findByText(/身長・体重・体脂肪率がまだ登録されていません/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '身体測定を登録する' })).toHaveAttribute('href', '/body')
     expect(screen.getAllByText('未登録')).toHaveLength(3)
   })

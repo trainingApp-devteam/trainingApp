@@ -54,6 +54,7 @@ describe('Header hamburger menu', () => {
       ['記録', '/record'],
       ['履歴', '/history'],
       ['メニュー', '/menu'],
+      ['推移', '/progress'],
       ['身体測定', '/body'],
       ['アカウント', '/account'],
     ])

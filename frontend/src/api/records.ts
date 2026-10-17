@@ -32,7 +32,7 @@ type BackendSession = {
     exerciseId: number
     exerciseName: string
     category?: string
-    sets: Array<{ reps: number | null; durationSeconds: number | null; weightKg: number | null; calorieEstimateId?: number | null; estimatedCaloriesKcal?: number | null }>
+    sets: Array<{ reps: number | null; durationSeconds: number | null; weightKg: number | null; calorieEstimateId?: number | null; estimatedCaloriesKcal?: number | null; rpe?: number | null }>
   }>
 }
 
@@ -49,6 +49,7 @@ function mapSession(session: BackendSession): RecordItem {
     weight: set.weightKg ?? undefined,
     calorieEstimateId: set.calorieEstimateId ?? undefined,
     estimatedCaloriesKcal: set.estimatedCaloriesKcal ?? undefined,
+    rpe: set.rpe ?? undefined,
   })))
   return {
     id: String(session.id),
@@ -128,4 +129,32 @@ export async function updateRecord(id: string, body: Omit<RecordItem, 'id'>): Pr
 
 export async function deleteRecord(id: string): Promise<void> {
   await apiRequest<void>(`/training-sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+// 推定対象のセットだけ消費カロリーを推定する。推定済みのセットはそのまま。
+// 推定に失敗したセットは未計算のまま返し、記録の保存自体は止めない
+export async function withCalorieEstimates(sets: SetItem[], bodyWeightKg: number | null): Promise<SetItem[]> {
+  return Promise.all(sets.map(async (set) => {
+    const weight = set.bodyWeightKg ?? bodyWeightKg
+    if (set.calorieEstimateId !== undefined || !set.calorieEnabled || !set.exerciseId || !weight) return set
+    try {
+      const estimate = await createCalorieEstimate({
+        exerciseId: Number(set.exerciseId),
+        basis: set.type === 'reps' ? 'REP' : 'MINUTE',
+        rpe: set.rpe || 6,
+        bodyWeightKg: weight,
+        externalLoadKg: set.weight,
+        reps: set.type === 'reps' ? set.reps : undefined,
+        durationSeconds: set.type === 'time' ? set.timeSeconds : undefined,
+      })
+      return {
+        ...set,
+        estimatedCaloriesKcal: estimate.estimatedCaloriesKcal,
+        calorieEstimateId: estimate.estimateId,
+        calorieNote: estimate.note,
+      }
+    } catch {
+      return set
+    }
+  }))
 }

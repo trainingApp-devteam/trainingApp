@@ -10,6 +10,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -40,6 +41,12 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiError> handleMalformedRequest() {
         return ResponseEntity.badRequest().body(new ApiError(
                 "VALIDATION_ERROR", "入力内容を確認してください。", List.of(), RequestIdFilter.current()));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ApiError> methodNotAllowed(HttpRequestMethodNotSupportedException exception) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(new ApiError(
+                "METHOD_NOT_ALLOWED", "この操作は提供していません。", List.of(), RequestIdFilter.current()));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
